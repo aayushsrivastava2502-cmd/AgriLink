@@ -500,7 +500,11 @@ def update_shared_trip_status(db, trip_id: int, new_status: str, user_id: int, u
 
 def list_shared_trips(db, user_id: Optional[int] = None, role: Optional[str] = None) -> List[Dict]:
     sql = (
-        "SELECT st.*, f.full_name AS farmer_name, COUNT(sto.id) AS order_count, "
+        "SELECT st.id, st.trip_code, st.farmer_id, st.collection_point_id, st.origin_name, "
+        "st.origin_lat, st.origin_lng, st.destination_area, st.status, st.rate_per_km, "
+        "st.total_distance_km, st.separate_total_cost, st.shared_total_cost, st.total_savings, "
+        "st.savings_percent, st.allocation_method, st.notes, st.created_at, st.updated_at, "
+        "MAX(f.full_name) AS farmer_name, COUNT(sto.id) AS order_count, "
         "COALESCE(SUM(o.quantity_kg), 0) AS total_kg "
         "FROM shared_trips st "
         "JOIN users f ON f.id = st.farmer_id "
@@ -515,7 +519,14 @@ def list_shared_trips(db, user_id: Optional[int] = None, role: Optional[str] = N
         sql += " WHERE st.id IN (SELECT trip_id FROM shared_trip_orders WHERE order_id IN (SELECT id FROM order_requests WHERE buyer_id = ?))"
         params.append(user_id)
 
-    sql += " GROUP BY st.id ORDER BY st.created_at DESC"
+    sql += (
+        " GROUP BY st.id, st.trip_code, st.farmer_id, st.collection_point_id, st.origin_name, "
+        "st.origin_lat, st.origin_lng, st.destination_area, st.status, st.rate_per_km, "
+        "st.total_distance_km, st.separate_total_cost, st.shared_total_cost, st.total_savings, "
+        "st.savings_percent, st.allocation_method, st.notes, st.created_at, st.updated_at, "
+        "f.full_name "
+        "ORDER BY st.created_at DESC"
+    )
     return [dict(r) for r in db.execute(sql, params).fetchall()]
 
 
@@ -711,7 +722,10 @@ def get_group_pool_details(db, pool_id: int) -> Optional[Dict]:
 
 def list_group_pools(db, crop: Optional[str] = None, status: Optional[str] = None) -> List[Dict]:
     sql = (
-        "SELECT p.*, f.full_name AS farmer_name, COUNT(m.id) AS member_count "
+        "SELECT p.id, p.pool_code, p.listing_id, p.farmer_id, p.crop_name, p.price_per_kg, "
+        "p.target_delivery_area, p.target_lat, p.target_lng, p.min_total_kg, p.current_total_kg, "
+        "p.status, p.created_by_id, p.notes, p.created_at, p.updated_at, "
+        "MAX(f.full_name) AS farmer_name, COUNT(m.id) AS member_count "
         "FROM group_order_pools p "
         "JOIN users f ON f.id = p.farmer_id "
         "LEFT JOIN group_order_members m ON m.pool_id = p.id "
@@ -727,7 +741,13 @@ def list_group_pools(db, crop: Optional[str] = None, status: Optional[str] = Non
     if where:
         sql += " WHERE " + " AND ".join(where)
 
-    sql += " GROUP BY p.id ORDER BY p.created_at DESC"
+    sql += (
+        " GROUP BY p.id, p.pool_code, p.listing_id, p.farmer_id, p.crop_name, p.price_per_kg, "
+        "p.target_delivery_area, p.target_lat, p.target_lng, p.min_total_kg, p.current_total_kg, "
+        "p.status, p.created_by_id, p.notes, p.created_at, p.updated_at, "
+        "f.full_name "
+        "ORDER BY p.created_at DESC"
+    )
     rows = db.execute(sql, params).fetchall()
     res = []
     for r in rows:
