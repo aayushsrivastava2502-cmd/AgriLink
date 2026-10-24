@@ -1,0 +1,96 @@
+{% extends "base.html" %}{% from "_macros.html" import listing_card %}{% block title %}{{ _('Fresh from Farms. Fair for Everyone.') }}{% endblock %}
+{% block content %}
+<section class="hero"><div class="container hero-grid">
+  <div>
+    <h1>{{ _('Fresh from Farms. Fair for Everyone.') }}</h1>
+    <p class="lead">{{ _('Connect directly with farmers, discover fresh local produce, and make informed buying and selling decisions with intelligent price guidance.') }}</p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="{{ url_for('main.marketplace') }}">{{ _('Explore Marketplace') }}</a>
+      <a class="btn btn-accent" href="{{ url_for('auth.register', role='farmer') }}">{{ _('Start Selling') }}</a>
+    </div>
+    <p class="hero-note">{{ _('Prices are quoted in ₹ per kilogram. Sample listings are fictional demonstration data.') }}</p>
+  </div>
+  <div class="hero-art"><img src="{{ url_for('static', filename='images/hero-farm.svg') }}" alt="Illustration of green terraced fields at sunrise with a basket of tomatoes"></div>
+</div></section>
+
+<section class="section" style="padding-top:24px"><div class="container">
+  <div class="grid grid-4">
+    <div class="card stat"><b>{{ stats.farmers }}</b><span>{{ _('Farmers registered') }}</span></div>
+    <div class="card stat"><b>{{ stats.listings }}</b><span>{{ _('Active crop listings') }}</span></div>
+    <div class="card stat"><b>{{ '{:,.0f}'.format(stats.kg) }} kg</b><span>{{ _('Produce available now') }}</span></div>
+    <div class="card stat"><b>{{ stats.orders }}</b><span>{{ _('Order requests placed') }}</span></div>
+  </div>
+  <p class="small muted" style="margin-top:12px">{{ _("Live counts from this prototype's database.") }}{% if stats.has_demo %} {{ _('They include') }} <strong>{{ _('fictional demonstration data') }}</strong> {{ _('and do not describe real farmers or sales.') }}{% endif %}</p>
+</div></section>
+
+<section class="section tint" id="how"><div class="container">
+  <div class="section-head"><h2>{{ _('How AgriLink AI works') }}</h2><p>{{ _('From harvest to handover in four steps, with no middleman taking a cut in this prototype.') }}</p></div>
+  <ol class="steps">
+    <li><h3>{{ _('Farmers list crops') }}</h3><p>{{ _('Add quantity, quality and an asking price in ₹/kg, with the farm location.') }}</p></li>
+    <li><h3>{{ _('Buyers search nearby') }}</h3><p>{{ _('Filter by crop, price, quality and quantity, or find farmers on the map.') }}</p></li>
+    <li><h3>{{ _('Check a fair price') }}</h3><p>{{ _('Compare an asking price with a reference price before you commit.') }}</p></li>
+    <li><h3>{{ _('Request and confirm') }}</h3><p>{{ _('Send an order request. The farmer accepts or rejects it and you track the status.') }}</p></li>
+  </ol>
+</div></section>
+
+<section class="section"><div class="container">
+  <div style="display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap" class="section-head" >
+    <div><h2>{{ _('Featured crops') }}</h2><p class="muted" style="margin:0">{{ _('The newest listings in the marketplace.') }}</p></div>
+    <a class="btn btn-outline" href="{{ url_for('main.marketplace') }}">{{ _('See all crops') }}</a>
+  </div>
+  {% if featured %}<div class="grid grid-4">{% for l in featured %}{{ listing_card(l) }}{% endfor %}</div>
+  {% else %}<div class="empty card">{{ _('No listings yet. Farmers can add the first one.') }}</div>{% endif %}
+</div></section>
+
+<section class="section dark" id="pricing"><div class="container split">
+  <div>
+    <h2>{{ _('Smart price estimation') }}</h2>
+    <p>{{ _('Not sure whether an asking price is fair? Enter a crop, market and date and compare it with a reference price in ₹/kg.') }}</p>
+    <ul class="check">
+      <li>{{ _('Shows the difference in ₹/kg and as a percentage') }}</li>
+      <li>{{ _('Always states the data source and reference date') }}</li>
+      <li>{% if model %}A model trained on imported mandi data is active (hold-out error ₹{{ model.mae_per_kg }}/kg).{% else %}{{ _('Currently in') }} <strong>{{ _('demonstration mode') }}</strong>{{ _(': no mandi dataset has been imported and no model is trained.') }}{% endif %}</li>
+    </ul>
+  </div>
+  <form class="card" action="{{ url_for('main.price_estimator') }}" method="get" style="color:var(--ink)">
+    <h3>{{ _('Quick check') }}</h3>
+    <p><label for="q-crop">{{ _('Crop') }}</label><input id="q-crop" name="crop" list="crop-list" required placeholder="{{ _('e.g. Tomato') }}"></p>
+    <datalist id="crop-list">{% for c in crops %}<option value="{{ c }}">{% endfor %}</datalist>
+    <p><label for="q-ask">{{ _('Asking price (₹/kg)') }}</label><input id="q-ask" name="asking" type="number" step="0.01" min="0.01" placeholder="e.g. 24"></p>
+    <button class="btn btn-primary btn-block">{{ _('Estimate fair price') }}</button>
+  </form>
+</div></section>
+
+<section class="section" id="nearby"><div class="container split">
+  <div>
+    <h2>{{ _('Find farmers near you') }}</h2>
+    <p>{{ _('See farmers on an interactive OpenStreetMap, ranked by crop availability, price and distance. Add a transport rate to estimate the delivered cost in ₹.') }}</p>
+    <p class="small muted">{{ _('Distances are straight-line estimates and transport costs are illustrative, not delivery quotes. Farm locations in the demo are fictional.') }}</p>
+    <div class="btn-row">
+      <a class="btn btn-primary" href="{{ url_for('main.nearby_farmers') }}">{{ _('Open the farmer map') }}</a>
+      <a class="btn btn-outline" href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a>
+    </div>
+  </div>
+  <div class="card"><h3>{{ _('What you get') }}</h3><ul class="check">
+    <li>{{ _('Markers with crop, price and quantity in each popup') }}</li>
+    <li>{{ _('Filter by crop, quantity, price and quality') }}</li>
+    <li>{{ _('Distance in km and estimated delivered cost') }}</li>
+    <li>{{ _('Consolidated shared transport and group order pools') }}</li>
+    <li>{{ _('Regional collection hubs across Greater Noida') }}</li></ul></div>
+</div></section>
+
+<section class="section tint"><div class="container grid grid-2">
+  <div class="card"><h3>{{ _('Benefits for farmers') }}</h3><ul class="check">
+    <li>{{ _('Reach buyers directly and set your own asking price') }}</li>
+    <li>{{ _('Use reference prices to price with confidence') }}</li>
+    <li>{{ _('Manage listings and order requests in one dashboard') }}</li>
+    <li>{{ _('Accept only the orders your stock can cover') }}</li></ul>
+    <a class="btn btn-accent" href="{{ url_for('auth.register', role='farmer') }}">{{ _('Start selling') }}</a></div>
+  <div class="card"><h3>{{ _('Benefits for buyers') }}</h3><ul class="check">
+    <li>{{ _('Discover fresh produce close to you') }}</li>
+    <li>{{ _('Compare prices, quality and harvest dates side by side') }}</li>
+    <li>{{ _('See an estimated delivered cost before you ask') }}</li>
+    <li>{{ _('Track every request from pending to completed') }}</li></ul>
+    <a class="btn btn-primary" href="{{ url_for('auth.register', role='buyer') }}">{{ _('Start buying') }}</a></div>
+</div></section>
+{% endblock %}

@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ _('Shared Trip') }} {{ trip.trip_code }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <h1 style="font-size:2.2rem;margin:0">{{ _('Shared Trip') }}: {{ trip.trip_code }}</h1>
+      <span class="badge {{ trip.status }}">{{ _(trip.status) }}</span>
+    </div>
+    <p style="margin:4px 0 0">{{ _('Origin / Hub') }}: <strong>{{ trip.origin_name }}</strong> · {{ _('Destination') }}: <strong>{{ trip.destination_area }}</strong></p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-outline" href="{{ url_for('transport.list_shared_trips') }}">← {{ _('Shared Delivery Trips') }}</a>
+  </div>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <!-- Financial Comparison Summary -->
+  <div class="grid grid-4">
+    <div class="card stat">
+      <b>{{ trip.total_savings|inr }}</b>
+      <span>{{ _('Net Savings') }} ({{ trip.savings_percent }}%)</span>
+    </div>
+    <div class="card stat">
+      <b>{{ trip.shared_total_cost|inr }}</b>
+      <span>{{ _('Shared Delivery Cost') }}</span>
+    </div>
+    <div class="card stat">
+      <b>{{ trip.separate_total_cost|inr }}</b>
+      <span>{{ _('Standalone Delivery Cost') }}</span>
+    </div>
+    <div class="card stat">
+      <b>≈ {{ trip.total_distance_km }} km</b>
+      <span>{{ _('Optimized Route Distance') }}</span>
+    </div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:24px;align-items:start">
+    <!-- Map Visualization -->
+    <div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="route-map" class="map" role="region" aria-label="{{ _('Interactive Route Map') }}"></div>
+        <div id="route-map-fallback" class="map-fallback card">{{ _('Map tiles could not be loaded.') }}</div>
+      </div>
+      <p class="small muted" style="margin-top:8px">
+        <em>{{ _('Straight-line approximation disclosure') }}</em>
+      </p>
+    </div>
+
+    <!-- Trip Details & Management -->
+    <div class="card">
+      <h3>{{ _('Trip Details') }}</h3>
+      <dl class="kv">
+        <dt>{{ _('Allocation Method') }}</dt>
+        <dd>{{ _(trip.allocation_method) }}</dd>
+        <dt>{{ _('Transport Rate') }}</dt>
+        <dd>{{ trip.rate_per_km|inr }}/km</dd>
+        <dt>{{ _('Total Volume Consolidated') }}</dt>
+        <dd>{{ trip.total_kg|kg }}</dd>
+        <dt>{{ _('Stops') }}</dt>
+        <dd>{{ trip.stops_count }} {{ _('Orders') }}</dd>
+        <dt>{{ _('Order Date') }}</dt>
+        <dd>{{ trip.created_at[:10] }}</dd>
+      </dl>
+      {% if trip.notes %}<p style="margin-top:12px"><strong>{{ _('Message') }}:</strong> {{ trip.notes }}</p>{% endif %}
+
+      <!-- Status Management Form for Farmer -->
+      {% if is_owner %}
+        <div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px">
+          <h4>{{ _('Status') }}</h4>
+          <div class="inline-actions" style="margin-top:8px">
+            {% if trip.status == 'proposed' %}
+              <form method="post" action="{{ url_for('transport.update_trip_status', trip_id=trip.id) }}">
+                {{ csrf() }}
+                <input type="hidden" name="status" value="confirmed">
+                <button class="btn btn-primary btn-sm">{{ _('Confirm and Dispatch Trip') }}</button>
+              </form>
+              <form method="post" action="{{ url_for('transport.update_trip_status', trip_id=trip.id) }}">
+                {{ csrf() }}
+                <input type="hidden" name="status" value="cancelled">
+                <button class="btn btn-danger btn-sm">{{ _('Cancel') }}</button>
+              </form>
+            {% elif trip.status == 'confirmed' %}
+              <form method="post" action="{{ url_for('transport.update_trip_status', trip_id=trip.id) }}">
+                {{ csrf() }}
+                <input type="hidden" name="status" value="dispatched">
+                <button class="btn btn-primary btn-sm">{{ _('dispatched') }}</button>
+              </form>
+            {% elif trip.status == 'dispatched' %}
+              <form method="post" action="{{ url_for('transport.update_trip_status', trip_id=trip.id) }}">
+                {{ csrf() }}
+                <input type="hidden" name="status" value="completed">
+                <button class="btn btn-accent btn-sm">{{ _('Mark Completed') }}</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Orders Allocation Breakdown Table -->
+  <div class="card" style="margin-top:24px">
+    <h3>{{ _('Participating Orders & Cost Allocation')|safe }}</h3>
+    <p class="small muted">{{ _('Cost is divided transparently according to') }} <strong>{{ _(trip.allocation_method) }}</strong>.</p>
+    <div class="table-wrap"><table>
+      <thead>
+        <tr>
+          <th>{{ _('Stops') }}</th>
+          <th>{{ _('Order #') }}</th>
+          <th>{{ _('Buyer') }}</th>
+          <th>{{ _('Delivery Address') }}</th>
+          <th>{{ _('Crop') }} & {{ _('Quantity') }}</th>
+          <th>{{ _('Standalone Delivery Cost') }}</th>
+          <th>{{ _('Your Delivery Share') }}</th>
+          <th>{{ _('Net Savings') }}</th>
+          <th>{{ _('Status') }}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in trip.orders %}
+          <tr>
+            <td>
+              <span class="pin stop" style="width:24px;height:24px;display:inline-flex;margin-right:6px">{{ o.stop_sequence }}</span>
+              {{ _('Stop') }} {{ o.stop_sequence }}
+            </td>
+            <td><strong>#{{ o.order_id }}</strong></td>
+            <td>
+              {{ o.buyer_name }}
+              {% if o.buyer_phone %}<div class="small muted">☎ {{ o.buyer_phone }}</div>{% endif %}
+            </td>
+            <td>{{ o.delivery_address or o.buyer_city }}</td>
+            <td>{{ _(o.crop_name) if o.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else o.crop_name }} · <strong>{{ o.quantity_kg|kg }}</strong></td>
+            <td>{{ o.individual_cost|inr(true) }} <small class="muted">({{ o.individual_distance_km }} km)</small></td>
+            <td><strong style="color:var(--green-900)">{{ o.allocated_cost|inr(true) }}</strong></td>
+            <td><strong style="color:var(--green-700)">-{{ o.savings|inr(true) }}</strong> ({{ o.savings_percent }}%)</td>
+            <td><span class="badge {{ o.order_status }}">{{ _(o.order_status) }}</span></td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table></div>
+  </div>
+</div>
+
+<script type="application/json" id="waypoints-data">{{ waypoints|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>
+  (function () {
+    var raw = document.getElementById("waypoints-data");
+    if (raw && typeof AgriMap !== "undefined") {
+      AgriMap.routeMap("route-map", JSON.parse(raw.textContent));
+    }
+  })();
+</script>
+{% endblock %}

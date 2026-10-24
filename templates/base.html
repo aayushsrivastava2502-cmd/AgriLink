@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="{{ current_lang }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ _('AgriLink AI') }}{% endblock %} · {{ _('AgriLink AI') }}</title>
+  <meta name="description" content="{{ _('Direct farmer-to-customer marketplace with fair-price guidance and local sourcing.') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Devanagari:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+<a class="skip" href="#main">{{ _('Skip to content') }}</a>
+<header class="nav">
+  <div class="container nav-inner">
+    <a class="logo" href="{{ url_for('main.index') }}" aria-label="{{ _('AgriLink AI') }}">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><circle cx="16" cy="16" r="16" fill="#16A34A"/><path d="M8 22c0-8 5-13 15-13 0 9-5 14-13 14l-2 2" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 19c3-3 6-5 9-6" stroke="#FACC15" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+      AgriLink AI
+    </a>
+    <button class="nav-toggle" aria-label="{{ _('Menu') }}" aria-expanded="false">☰</button>
+    {% set ep = request.endpoint %}
+    <ul class="nav-links">
+      <li><a href="{{ url_for('main.index') }}" {% if ep == 'main.index' %}aria-current="page"{% endif %}>{{ _('Home') }}</a></li>
+      <li><a href="{{ url_for('main.marketplace') }}" {% if ep in ('main.marketplace','main.product_detail') %}aria-current="page"{% endif %}>{{ _('Marketplace') }}</a></li>
+      <li><a href="{{ url_for('main.index') }}#how">{{ _('How It Works') }}</a></li>
+      <li><a href="{{ url_for('main.price_estimator') }}" {% if ep == 'main.price_estimator' %}aria-current="page"{% endif %}>{{ _('Smart Pricing') }}</a></li>
+      <li><a href="{{ url_for('main.nearby_farmers') }}" {% if ep == 'main.nearby_farmers' %}aria-current="page"{% endif %}>{{ _('Nearby Farmers') }}</a></li>
+      <li><a href="{{ url_for('transport.dashboard') }}" {% if ep and ep.startswith('transport.') %}aria-current="page"{% endif %}>{{ _('Transport Optimizer') }}</a></li>
+      {% if current_user %}
+        <li><a href="{{ url_for('farmer.dashboard') if current_user.role == 'farmer' else url_for('orders.buyer_dashboard') }}">{{ _('Dashboard') }}</a></li>
+        <li><a href="{{ url_for('orders.list_orders') }}" {% if ep == 'orders.list_orders' %}aria-current="page"{% endif %}>{{ _('Orders') }}</a></li>
+        <li><form method="post" action="{{ url_for('auth.logout') }}"><input type="hidden" name="_csrf" value="{{ csrf_token() }}"><button class="linklike" type="submit">{{ _('Log out') }} ({{ current_user.full_name.split()[0] }})</button></form></li>
+      {% else %}
+        <li><a href="{{ url_for('auth.login') }}">{{ _('Login') }}</a></li>
+        <li><a class="cta" href="{{ url_for('auth.register') }}">{{ _('Get Started') }}</a></li>
+      {% endif %}
+      <li class="lang-selector-item">
+        <form method="post" action="{{ url_for('main.set_language') }}" class="lang-form" style="display:inline-flex;margin:0">
+          <input type="hidden" name="_csrf" value="{{ csrf_token() }}">
+          <input type="hidden" name="next" value="{{ request.full_path if request.query_string else request.path }}">
+          <div class="lang-switch-wrap" role="group" aria-label="Select Language">
+            <button type="submit" name="lang" value="en" class="lang-opt {% if current_lang == 'en' %}active{% endif %}" title="Switch to English" aria-pressed="{{ 'true' if current_lang == 'en' else 'false' }}">English</button>
+            <span class="lang-sep">|</span>
+            <button type="submit" name="lang" value="hi" class="lang-opt {% if current_lang == 'hi' %}active{% endif %}" title="हिन्दी में बदलें" aria-pressed="{{ 'true' if current_lang == 'hi' else 'false' }}">हिन्दी</button>
+          </div>
+        </form>
+      </li>
+    </ul>
+  </div>
+</header>
+<div class="container flashes" aria-live="polite">
+  {% with messages = get_flashed_messages(with_categories=true) %}{% for cat, msg in messages %}
+    <div class="flash {{ cat }}"><span>{{ _(msg) }}</span><button type="button" aria-label="Dismiss">×</button></div>
+  {% endfor %}{% endwith %}
+</div>
+<main id="main">{% block content %}{% endblock %}</main>
+<footer class="footer">
+  <div class="container footer-grid">
+    <div>
+      <h4>AgriLink AI</h4>
+      <p>{{ _('A direct farmer-to-customer marketplace with smarter pricing and local sourcing. B.Tech Computer Science mini project (prototype).') }}</p>
+      <p class="small">{{ _('All farmers, listings, prices and orders that ship with this prototype are fictional demonstration data. Prices are illustrative and are not current market prices. No real payments are processed.') }}</p>
+    </div>
+    <div><h4>{{ _('Explore') }}</h4><ul>
+      <li><a href="{{ url_for('main.marketplace') }}">{{ _('Marketplace') }}</a></li>
+      <li><a href="{{ url_for('main.price_estimator') }}">{{ _('Smart price estimator') }}</a></li>
+      <li><a href="{{ url_for('main.nearby_farmers') }}">{{ _('Nearby farmers map') }}</a></li>
+      <li><a href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a></li>
+      <li><a href="{{ url_for('transport.list_group_pools') }}">{{ _('Group Ordering Pools') }}</a></li>
+      <li><a href="{{ url_for('transport.collection_points') }}">{{ _('Collection Points') }}</a></li></ul></div>
+    <div><h4>{{ _('Account') }}</h4><ul>
+      <li><a href="{{ url_for('auth.register', role='farmer') }}">{{ _('Sell as a farmer') }}</a></li>
+      <li><a href="{{ url_for('auth.register', role='buyer') }}">{{ _('Buy as a customer') }}</a></li>
+      <li><a href="{{ url_for('auth.login') }}">{{ _('Login') }}</a></li></ul></div>
+    <small class="container" style="grid-column:1/-1;padding:16px 0 0">{{ _('Map data ©') }} <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. {{ _('Built with Flask, SQLite, scikit-learn, Leaflet and Chart.js.') }}</small>
+  </div>
+</footer>
+<script>
+  window.AGRI_I18N = {{ get_js_translations()|tojson }};
+  window.currentLang = "{{ current_lang }}";
+  window.t = function(key, fallback) {
+    if (window.AGRI_I18N && window.AGRI_I18N[key]) return window.AGRI_I18N[key];
+    return fallback || key;
+  };
+</script>
+<script src="{{ url_for('static', filename='js/main.js') }}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,82 @@
+{% macro csrf() %}<input type="hidden" name="_csrf" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro err(errors, name) %}{% if errors and errors.get(name) %}<div class="field-error" role="alert">{{ _(errors[name]) }}</div>{% endif %}{% endmacro %}
+
+{% macro field(name, label, errors, values, type='text', required=True, hint='', step=None, placeholder='', list=None, full=False, maxlength=None, min=None, max=None) %}
+<div class="{{ 'full' if full }}">
+  <label for="{{ name }}">{{ _(label) }}{% if not required %} <span class="muted">({{ _('optional') }})</span>{% endif %}</label>
+  <input id="{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ values.get(name, '') if values.get(name) is not none else '' }}"
+    {% if required %}required{% endif %} {% if step %}step="{{ step }}"{% endif %} {% if placeholder %}placeholder="{{ _(placeholder) }}"{% endif %}
+    {% if list %}list="{{ list }}"{% endif %} {% if maxlength %}maxlength="{{ maxlength }}"{% endif %} {% if min is not none %}min="{{ min }}"{% endif %} {% if max %}max="{{ max }}"{% endif %}
+    class="{{ 'invalid' if errors and errors.get(name) }}" {% if type == 'password' %}autocomplete="{{ 'current-password' if name == 'password' and false else 'new-password' }}"{% endif %}>
+  {% if hint %}<div class="hint">{{ _(hint) }}</div>{% endif %}
+  {{ err(errors, name) }}
+</div>
+{% endmacro %}
+
+{% macro status_badge(status) %}<span class="badge {{ status }}">{{ _(status.replace('_', ' ').title()) if current_lang == 'hi' else status.replace('_', ' ').title() }}</span>{% endmacro %}
+
+{% macro listing_card(l) %}
+<article class="pcard">
+  <a class="pcard-img" href="{{ url_for('main.product_detail', listing_id=l.id) }}" tabindex="-1" aria-hidden="true"><img src="{{ l|crop_image }}" alt="" loading="lazy"></a>
+  <div class="pcard-body">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:start">
+      <h3><a href="{{ url_for('main.product_detail', listing_id=l.id) }}" style="text-decoration:none">{{ _(l.crop_name) if l.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else l.crop_name }}</a></h3>
+      <span class="badge {{ l.quality }}">{{ _(l.quality) }}</span>
+    </div>
+    <div class="price">{{ l.price_per_kg|inr }}<small>/kg</small></div>
+    <div class="meta">
+      <span>👤 {{ l.farmer_name }}</span><span>📍 {{ l.city }}, {{ l.state }}</span>
+      <span>⚖️ {{ l.quantity_kg|kg }} {{ _('available') }}</span><span>🌾 {{ _('Harvested') }} {{ l.harvest_date|fmt_date }}</span>
+      {% if l.get('distance_km') is not none %}<span>🧭 ≈ {{ '%.1f'|format(l.distance_km) }} km</span>{% endif %}
+    </div>
+    {% if l.is_demo %}<span class="badge demo" style="align-self:flex-start">{{ _('Demo data · fictional') }}</span>{% endif %}
+    <div class="pcard-actions">
+      <a class="btn btn-outline" href="{{ url_for('main.product_detail', listing_id=l.id) }}">{{ _('View Details') }}</a>
+      <a class="btn btn-primary" href="{{ url_for('main.product_detail', listing_id=l.id) }}#order">{{ _('Send Order Request') }}</a>
+    </div>
+  </div>
+</article>
+{% endmacro %}
+
+{% macro order_actions(o, role, back) %}
+<div class="inline-actions">
+  {% if role == 'farmer' and o.status == 'pending' %}
+    <form method="post" action="{{ url_for('orders.accept_order', order_id=o.id) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}"><button class="btn btn-primary btn-sm">{{ _('Accept') }}</button></form>
+    <form method="post" action="{{ url_for('orders.reject_order', order_id=o.id) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}"><button class="btn btn-danger btn-sm">{{ _('Reject') }}</button></form>
+  {% elif role == 'farmer' and o.status == 'accepted' %}
+    <form method="post" action="{{ url_for('orders.complete_order', order_id=o.id) }}">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}"><button class="btn btn-accent btn-sm">{{ _('Mark completed') }}</button></form>
+  {% elif role == 'buyer' and o.status == 'pending' %}
+    <form method="post" action="{{ url_for('orders.cancel_order', order_id=o.id) }}" onsubmit="return confirm('{{ _('Cancel this order request?') }}')">{{ csrf() }}<input type="hidden" name="back" value="{{ back }}"><button class="btn btn-outline btn-sm">{{ _('Cancel request') }}</button></form>
+  {% else %}<span class="muted small">—</span>{% endif %}
+</div>
+{% endmacro %}
+
+{% macro orders_table(orders, role, back) %}
+<div class="table-wrap"><table>
+  <thead><tr><th>#</th><th>{{ _('Crop') }}</th><th>{{ _('Buyer') if role == 'farmer' else _('Farmer') }}</th><th>{{ _('Quantity') }}</th><th>{{ _('Price') }}</th><th>{{ _('Product cost') }}</th><th>{{ _('Delivery') }}</th><th>{{ _('Status') }}</th><th>{{ _('Placed') }}</th><th>{{ _('Action') }}</th></tr></thead>
+  <tbody>
+  {% for o in orders %}
+    <tr>
+      <td>{{ o.id }}</td><td><strong>{{ _(o.crop_name) if o.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else o.crop_name }}</strong>{% if o.message %}<div class="small muted">“{{ o.message }}”</div>{% endif %}</td>
+      <td>{{ o.buyer_name if role == 'farmer' else o.farmer_name }}<div class="small muted">{{ o.buyer_city if role == 'farmer' else o.farmer_city }}</div>
+        {% if o.status in ('accepted','completed') %}<div class="small">☎ {{ o.buyer_phone if role == 'farmer' else o.farmer_phone }}</div>{% endif %}</td>
+      <td>{{ o.quantity_kg|kg }}</td><td>{{ o.price_per_kg|per_kg }}</td><td><strong>{{ o.product_cost|inr(true) }}</strong></td>
+      <td>
+        {{ _(o.delivery_preference) if o.delivery_preference in ('delivery', 'pickup') else o.delivery_preference|title }}
+        {% if o.trip_code %}
+          <div class="small" style="margin-top:4px">
+            <a href="{{ url_for('transport.trip_details', trip_id=o.trip_id) }}" style="text-decoration:none">
+              <span class="badge confirmed" style="font-size:0.75rem">🚚 {{ o.trip_code }}</span>
+            </a>
+          </div>
+          {% if o.trip_allocated_cost is not none %}
+            <div class="small" style="color:var(--green-700);font-weight:600">{{ _('Share:') }} {{ o.trip_allocated_cost|inr(true) }}</div>
+          {% endif %}
+        {% endif %}
+      </td><td>{{ status_badge(o.status) }}</td><td>{{ o.created_at|fmt_date }}</td>
+      <td>{{ order_actions(o, role, back) }}</td>
+    </tr>
+  {% else %}<tr><td colspan="10" class="empty">{{ _('No orders here yet.') }}</td></tr>{% endfor %}
+  </tbody></table></div>
+{% endmacro %}

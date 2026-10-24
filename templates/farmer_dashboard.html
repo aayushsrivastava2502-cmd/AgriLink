@@ -1,0 +1,46 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, status_badge, orders_table %}{% block title %}{{ _('Farmer Dashboard') }}{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;align-items:end">
+  <div><h1 style="font-size:2.2rem">{{ _('Farmer Dashboard') }}</h1><p>{{ _('Welcome') }}, {{ current_user.full_name }}. {{ _('Manage listings and order requests in one dashboard') }}.</p></div>
+  <a class="btn btn-primary" href="{{ url_for('farmer.add_listing') }}">+ {{ _('Add Crop Listing') }}</a>
+</div>
+<div class="container" style="margin-bottom:60px">
+  <div class="grid grid-4">
+    <div class="card stat"><b>{{ stats.total_listings }}</b><span>{{ _('Active Listings') }}</span></div>
+    <div class="card stat"><b>{{ stats.pending }}</b><span>{{ _('Pending Orders') }}</span></div>
+    <div class="card stat"><b>{{ stats.accepted }}</b><span>{{ _('Accepted orders') }}</span></div>
+    <div class="card stat"><b>{{ stats.available_value|inr }}</b><span>{{ _('Total Revenue') }} ({{ _('Estimated') }})</span></div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:24px;align-items:start">
+    <div class="card"><h3>{{ _('Pending Orders') }}</h3>
+      {{ orders_table(pending, 'farmer', url_for('farmer.dashboard')) }}
+      <p class="small muted">{{ _('Accepting an order deducts that quantity from your listing. Rejecting changes nothing in stock.') }}</p></div>
+    <div class="card"><h3>{{ _('Value of available stock by crop') }}</h3>
+      <canvas data-chart='{{ chart|tojson }}' aria-label="{{ _('Value of available stock by crop') }}"></canvas></div>
+  </div>
+
+  <div class="card" style="margin-top:24px"><h3>{{ _('Accepted orders') }}</h3>{{ orders_table(accepted, 'farmer', url_for('farmer.dashboard')) }}</div>
+
+  <div class="card" style="margin-top:24px"><h3>{{ _('My Crop Listings') }}</h3>
+    <div class="table-wrap"><table>
+      <thead><tr><th>{{ _('Crop') }}</th><th>{{ _('Quantity') }}</th><th>{{ _('Asking Price') }}</th><th>{{ _('Quality') }}</th><th>{{ _('Harvest Date') }}</th><th>{{ _('Location') }}</th><th>{{ _('Status') }}</th><th>{{ _('Actions') }}</th></tr></thead>
+      <tbody>{% for l in listings %}
+        <tr><td><strong>{{ _(l.crop_name) if l.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else l.crop_name }}</strong>{% if l.is_demo %} <span class="badge demo">{{ _('Demo') }}</span>{% endif %}</td>
+          <td>{{ l.quantity_kg|kg }}</td><td>{{ l.price_per_kg|per_kg }}</td><td>{{ _(l.quality) }}</td><td>{{ l.harvest_date|fmt_date }}</td>
+          <td>{{ l.city }}</td><td>{{ status_badge(l.status) }}</td>
+          <td><div class="inline-actions">
+            <a class="btn btn-outline btn-sm" href="{{ url_for('farmer.edit_listing', listing_id=l.id) }}">{{ _('Edit') }}</a>
+            {% if l.status == 'sold_out' %}
+              <a class="btn btn-outline btn-sm" href="{{ url_for('farmer.edit_listing', listing_id=l.id) }}">{{ _('Restock') }}</a>
+            {% else %}
+              <form method="post" action="{{ url_for('farmer.toggle_listing', listing_id=l.id) }}">{{ csrf() }}
+                <button class="btn btn-outline btn-sm">{{ _('Mark unavailable') if l.status == 'active' else _('Make Active') }}</button></form>
+            {% endif %}
+            <form method="post" action="{{ url_for('farmer.delete_listing', listing_id=l.id) }}" onsubmit="return confirm('{{ _('Delete this listing permanently?') }}')">{{ csrf() }}
+              <button class="btn btn-danger btn-sm">{{ _('Delete') }}</button></form></div></td></tr>
+      {% else %}<tr><td colspan="8" class="empty">{{ _('No listings added yet.') }} <a href="{{ url_for('farmer.add_listing') }}">{{ _('Add your first crop listing to start selling directly to customers.') }}</a>.</td></tr>{% endfor %}</tbody>
+    </table></div></div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>{% endblock %}

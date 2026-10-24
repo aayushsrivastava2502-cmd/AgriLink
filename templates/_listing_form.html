@@ -1,0 +1,30 @@
+{% from "_macros.html" import csrf, field, err %}
+<form method="post" enctype="multipart/form-data" novalidate>{{ csrf() }}
+  <div class="form-grid">
+    {{ field('crop_name', 'Crop Name', errors, values, list='crop-names', placeholder='e.g. Tomato') }}
+    <datalist id="crop-names">{% for c in crops %}<option value="{{ c }}">{% endfor %}</datalist>
+    <div><label for="category">{{ _('Category') }}</label>
+      <select id="category" name="category" required class="{{ 'invalid' if errors.get('category') }}"><option value="">{{ _('Choose…') }}</option>
+        {% for c in categories %}<option value="{{ c }}" {{ 'selected' if values.get('category') == c }}>{{ _(c) }}</option>{% endfor %}</select>{{ err(errors, 'category') }}</div>
+    {{ field('quantity_kg', 'Available Quantity', errors, values, type='number', step='0.01', min=0.01) }}
+    {{ field('price_per_kg', 'Price per kg', errors, values, type='number', step='0.01', min=0.01, hint='Price for one kilogram, in Indian Rupees.') }}
+    <div><label for="quality">{{ _('Quality') }}</label>
+      <select id="quality" name="quality" required>{% for q in qualities %}<option value="{{ q }}" {{ 'selected' if values.get('quality', 'Standard') == q }}>{{ _(q) }}</option>{% endfor %}</select>{{ err(errors, 'quality') }}</div>
+    {{ field('harvest_date', 'Harvest Date', errors, values, type='date', max=today) }}
+    {{ field('city', 'City / Village', errors, values) }}
+    {{ field('state', 'State', errors, values) }}
+    {{ field('latitude', 'Latitude', errors, values, required=False, type='number', step='any', placeholder='e.g. 28.4744', hint='Optional. Add coordinates so buyers can find you on the map.') }}
+    {{ field('longitude', 'Longitude', errors, values, required=False, type='number', step='any', placeholder='e.g. 77.5040', hint='Right-click your farm on openstreetmap.org to read coordinates.') }}
+    <div class="full"><label for="description">{{ _('Description') }} <span class="muted">({{ _('optional') }})</span></label>
+      <textarea id="description" name="description" maxlength="1000">{{ values.get('description') or '' }}</textarea>{{ err(errors, 'description') }}</div>
+    {{ field('image_url', 'Image URL', errors, values, required=False, type='url', full=True, hint='Optional. Or upload an image below.') }}
+    <div class="full"><label for="image_file">{{ _('Upload Image') }} <span class="muted">(PNG, JPG, GIF or WEBP, max 2 MB)</span></label>
+      <input id="image_file" name="image_file" type="file" accept="image/png,image/jpeg,image/gif,image/webp">{{ err(errors, 'image_file') }}
+      <img id="image-preview" alt="Selected image preview" hidden style="max-width:200px;margin-top:8px;border-radius:10px">
+      {% if listing and listing.image_url %}<label style="margin-top:8px;font-weight:500"><input type="checkbox" name="remove_image" value="1" style="width:auto"> {{ _('Remove current image') }}</label>{% endif %}</div>
+  </div>
+  <div class="btn-row" style="margin-top:22px">
+    <button class="btn btn-primary">{{ _(submit_label) }}</button>
+    <a class="btn btn-outline" href="{{ url_for('farmer.dashboard') }}">{{ _('Cancel') }}</a>
+  </div>
+</form>

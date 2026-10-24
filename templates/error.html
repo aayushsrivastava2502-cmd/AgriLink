@@ -1,0 +1,4 @@
+{% extends "base.html" %}{% block title %}{{ title }}{% endblock %}
+{% block content %}<section class="section"><div class="container empty">
+  <h1>{{ code }}</h1><h2>{{ title }}</h2><p>{{ message }}</p>
+  <a class="btn btn-primary" href="{{ url_for('main.index') }}">Back to home</a></div></section>{% endblock %}

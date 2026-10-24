@@ -1,0 +1,5 @@
+{% extends "base.html" %}{% block title %}{{ _('Add Crop Listing') }}{% endblock %}
+{% block content %}<section class="section"><div class="container form-card"><div class="card">
+  <h1 style="font-size:2rem">{{ _('Add a crop listing') }}</h1><p class="muted">{{ _('Buyers will see this in the marketplace straight away.') }}</p>
+  {% set submit_label = 'Publish listing' %}{% set listing = none %}{% include "_listing_form.html" %}
+</div></div></section>{% endblock %}

@@ -1,0 +1,24 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf, field, err %}{% block title %}{{ _('Create an Account') }}{% endblock %}
+{% block content %}<section class="section"><div class="container form-card">
+  <div class="card">
+    <h1 style="font-size:2rem">{{ _('Create an Account') }}</h1>
+    <p class="muted">{{ _('Join AgriLink AI to connect directly with farmers or customers.') }}</p>
+    <form method="post" novalidate>{{ csrf() }}
+      <div class="form-grid">
+        <div class="full"><label>{{ _('I want to') }}</label>
+          <div class="radio-row">
+            <label><input type="radio" name="role" value="farmer" {% if values.get('role') == 'farmer' %}checked{% endif %} required> 🌾 {{ _('Farmer') }}</label>
+            <label><input type="radio" name="role" value="buyer" {% if values.get('role', 'buyer') == 'buyer' %}checked{% endif %}> 🛒 {{ _('Buyer / Customer') }}</label>
+          </div>{{ err(errors, 'role') }}</div>
+        {{ field('full_name', 'Full Name', errors, values, full=True, maxlength=80) }}
+        {{ field('email', 'Email Address', errors, values, type='email') }}
+        {{ field('phone', 'Phone Number', errors, values, type='tel', placeholder='10-digit mobile number') }}
+        {{ field('city', 'City / Village', errors, values) }}
+        {{ field('state', 'State', errors, values, placeholder='e.g. Uttar Pradesh') }}
+        {{ field('password', 'Password', errors, {}, type='password', hint='8+ characters with a letter and a number.') }}
+        {{ field('confirm_password', 'Confirm Password', errors, {}, type='password') }}
+      </div>
+      <p style="margin-top:20px"><button class="btn btn-primary btn-block">{{ _('Create an Account') }}</button></p>
+    </form>
+    <p class="small muted">{{ _('Already have an account?') }} <a href="{{ url_for('auth.login') }}">{{ _('Log in') }}</a></p>
+  </div></div></section>{% endblock %}

@@ -1,0 +1,30 @@
+{% extends "base.html" %}{% from "_macros.html" import listing_card %}{% block title %}{{ _('Marketplace') }}{% endblock %}
+{% block content %}
+<div class="container page-head"><h1 style="font-size:2.4rem">{{ _('Marketplace') }}</h1>
+  <p>{{ _('Browse crops listed by farmers. All prices are in ₹ per kilogram.') }}</p></div>
+<div class="container">
+  <form class="card filters" method="get" action="{{ url_for('main.marketplace') }}">
+    <div><label for="q">{{ _('Crop Name') }}</label><input id="q" name="q" value="{{ f.q }}" placeholder="{{ _('e.g. Tomato') }}"></div>
+    <div><label for="category">{{ _('Category') }}</label><select id="category" name="category"><option value="">{{ _('All Categories') }}</option>{% for c in categories %}<option value="{{ c }}" {{ 'selected' if f.category == c }}>{{ _(c) }}</option>{% endfor %}</select></div>
+    <div><label for="location">{{ _('Location') }}</label><input id="location" name="location" value="{{ f.location }}" placeholder="{{ _('City or state') }}"></div>
+    <div><label for="min_price">{{ _('Min Price (₹)') }}</label><input id="min_price" name="min_price" type="number" min="0" step="0.01" value="{{ raw.get('min_price', '') }}"></div>
+    <div><label for="max_price">{{ _('Max Price (₹)') }}</label><input id="max_price" name="max_price" type="number" min="0" step="0.01" value="{{ raw.get('max_price', '') }}"></div>
+    <div><label for="min_qty">{{ _('Min Quantity (kg)') }}</label><input id="min_qty" name="min_qty" type="number" min="0" step="0.01" value="{{ raw.get('min_qty', '') }}"></div>
+    <div><label for="quality">{{ _('Quality') }}</label><select id="quality" name="quality"><option value="">{{ _('All Qualities') }}</option>{% for q in qualities %}<option value="{{ q }}" {{ 'selected' if f.quality == q }}>{{ _(q) }}</option>{% endfor %}</select></div>
+    <div><label for="sort">{{ _('Sort by') }}</label><select id="sort" name="sort">{% for k, v in sorts.items() %}<option value="{{ k }}" {{ 'selected' if f.sort == k }}>{{ _(v) }}</option>{% endfor %}</select></div>
+    <div><button class="btn btn-primary btn-block">{{ _('Apply Filters') }}</button></div>
+    <div><a class="btn btn-outline btn-block" href="{{ url_for('main.marketplace') }}">{{ _('Reset') }}</a></div>
+  </form>
+  <p class="small muted" style="margin:12px 0">
+    {% if loc %}{{ _('Your Location') }}: <strong>{{ loc[2] or _('Point on map') }}</strong> ({{ _('used for distance and nearest sort') }}) · <a href="{{ url_for('main.marketplace', clear_loc=1) }}">{{ _('Clear Filters') }}</a>
+    {% else %}{{ _('No location set.') }} <a href="{{ url_for('main.nearby_farmers') }}">{{ _('Find Nearby Farmers') }}</a> {{ _('to sort by nearest farmer.') }}{% endif %}
+  </p>
+  {% if notice %}<div class="notice">{{ _(notice) }}</div>{% endif %}
+  <p><strong>{{ total }}</strong> {{ 'listing' if total == 1 else 'listings' }} {{ _('found') if current_lang == 'hi' else 'found' }}</p>
+  {% if items %}<div class="grid grid-4">{% for l in items %}{{ listing_card(l) }}{% endfor %}</div>
+  {% else %}<div class="card empty"><h3>{{ _('No listings found') }}</h3><p>{{ _('Try relaxing your search filters or clear location.') }}</p></div>{% endif %}
+  {% if pages > 1 %}<nav class="pagination" aria-label="Pages">
+    {% for p in range(1, pages + 1) %}{% if p == f.page %}<span class="cur">{{ p }}</span>{% else %}<a href="{{ url_for('main.marketplace', page=p, **page_args) }}">{{ p }}</a>{% endif %}{% endfor %}
+  </nav>{% endif %}
+</div><div style="height:60px"></div>
+{% endblock %}

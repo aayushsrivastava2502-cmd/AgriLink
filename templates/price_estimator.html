@@ -1,0 +1,62 @@
+{% extends "base.html" %}{% block title %}{{ _('Smart Price Guidance') }}{% endblock %}
+{% block content %}
+<div class="container page-head"><h1 style="font-size:2.4rem">{{ _('Smart Price Guidance') }}</h1>
+  <p>{{ _('Compare your asking price with regional mandi benchmarks and machine learning estimates in ₹/kg.') }}</p></div>
+<div class="container" style="margin-bottom:60px">
+  {% if model %}
+    <div class="notice" style="background:var(--green-100);border-color:var(--green-600)"><strong>{{ _('Model trained and evaluated.') }}</strong> RandomForestRegressor trained {{ model.trained_at[:10] }} on {{ model.train_rows }} rows (data {{ model.data_from }} to {{ model.data_to }}). Hold-out MAE: <strong>₹{{ model.mae_per_kg }}/kg</strong> on {{ model.test_rows }} rows from {{ model.split_date }} onward (last-price baseline ₹{{ model.baseline_last_price_mae_per_kg }}/kg). Source: {{ model.sources|join(', ') or 'imported data' }}.</div>
+  {% else %}
+    <div class="notice"><strong>{{ _('Demonstration mode.') }}</strong> {{ _('No mandi dataset has been imported and no model has been trained, so reference prices come from built-in illustrative values, not real market data. See the README to import AGMARKNET / data.gov.in data and train the model.') }}</div>
+  {% endif %}
+  <div class="split">
+    <form class="card" method="get" action="{{ url_for('main.price_estimator') }}"><input type="hidden" name="go" value="1">
+      <h3>{{ _('Calculate Benchmark Price') }}</h3>
+      <div class="form-grid">
+        <div class="full"><label for="crop">{{ _('Crop Name') }}</label><input id="crop" name="crop" list="crops" required value="{{ values.crop }}" placeholder="{{ _('e.g. Tomato') }}"></div>
+        <datalist id="crops">{% for c in crops %}<option value="{{ c }}">{% endfor %}</datalist>
+        <div class="full"><label for="market">{{ _('Target Market / Mandi') }} <span class="muted">({{ _('optional') }})</span></label><input id="market" name="market" list="markets" value="{{ values.market }}" placeholder="e.g. Dadri"></div>
+        <datalist id="markets">{% for m in markets %}<option value="{{ m }}">{% endfor %}</datalist>
+        <div><label for="date">{{ _('Date') }}</label><input id="date" name="date" type="date" value="{{ values.date }}"></div>
+        <div><label for="quantity">{{ _('Quantity (kg)') }} <span class="muted">({{ _('optional') }})</span></label><input id="quantity" name="quantity" type="number" step="0.01" min="0" value="{{ values.quantity }}"></div>
+        <div><label for="quality">{{ _('Quality') }}</label><select id="quality" name="quality"><option value="">{{ _('All Qualities') }}</option>{% for q in qualities %}<option value="{{ q }}" {{ 'selected' if values.quality == q }}>{{ _(q) }}</option>{% endfor %}</select></div>
+        <div><label for="asking">{{ _('Asking Price') }} (₹/kg) <span class="muted">({{ _('optional') }})</span></label><input id="asking" name="asking" type="number" step="0.01" min="0.01" value="{{ values.asking }}"></div>
+      </div>
+      {% for e in errors %}<div class="field-error">{{ _(e) }}</div>{% endfor %}
+      <p style="margin-top:18px"><button class="btn btn-primary btn-block">{{ _('Estimate fair price') }}</button></p>
+    </form>
+
+    <div>
+      {% if result %}
+      <div class="card">
+        <h3>{{ _('Result for') }} {{ _(result.crop) if result.crop in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else result.crop }}{% if result.market %} · {{ result.market }}{% endif %}</h3>
+        {% if result.reference is not none %}
+          <div class="result-big">{{ result.reference|inr(true) }}<small class="muted" style="font-size:1rem;font-weight:600"> / kg ({{ _('Reference Benchmark Price') }})</small></div>
+          <span class="badge {{ 'demo' if result.mode == 'demo' }}">{{ {'model': _('Trained RandomForest Model'), 'history': _('Recent Mandi Average'), 'demo': _('Demonstration Mode (Illustrative)')}[result.mode] }}</span>
+          <dl class="kv" style="margin-top:16px">
+            {% if result.asking is defined %}
+              <dt>{{ _('Asking Price') }}</dt><dd>{{ result.asking|inr(true) }}/kg</dd>
+              <dt>{{ _('Estimated Difference') }}</dt><dd>{{ result.difference|inr(true) }}/kg ({{ _('Above Reference') if result.difference > 0 else _('Below Reference') if result.difference < 0 else _('At Reference') }})</dd>
+              <dt>{{ _('Difference %') }}</dt><dd>{{ result.percent }}%</dd>
+            {% endif %}
+            <dt>{{ _('Date') }}</dt><dd>{{ result.date|fmt_date }}</dd>
+            <dt>{{ _('Model Source') }}</dt><dd>{{ _(result.source) }}</dd>
+          </dl>
+          {% if result.asking is defined %}
+            <p style="margin-top:12px"><strong>{% if result.verdict == 'close' %}{{ _('The asking price is within 10% of the reference.') }}{% elif result.verdict == 'above' %}{{ _('The asking price is more than 10% above the reference.') }}{% elif result.verdict == 'below' %}{{ _('The asking price is more than 10% below the reference.') }}{% endif %}</strong></p>
+          {% endif %}
+          <h4 style="margin-top:14px">{{ _('Market benchmark comparison') }}</h4><p>{{ _(result.explanation) }}</p>
+          {% if chart %}<canvas data-chart='{{ chart|tojson }}' aria-label="{{ _('Market benchmark comparison') }}"></canvas>{% endif %}
+        {% else %}<p>{{ _(result.explanation) }}</p>{% endif %}
+        {% for w in result.warnings %}<div class="notice {{ 'danger' if 'DEMONSTRATION' in w or 'SYNTHETIC' in w }}" style="margin-top:10px">{{ _(w) }}</div>{% endfor %}
+      </div>
+      {% else %}
+      <div class="card"><h3>{{ _('How AgriLink AI works') }}</h3><ul class="check">
+        <li>{{ _('Enter a crop and, if you have one, the farmer\'s asking price.') }}</li>
+        <li>{{ _('You get a reference price in ₹/kg, the difference and the percentage gap.') }}</li>
+        <li>{{ _('Mandi data is published in ₹/quintal; the app divides by 100 to get ₹/kg.') }}</li>
+        <li>{{ _('Without imported data the page runs in clearly labelled demonstration mode.') }}</li></ul></div>
+      {% endif %}
+    </div>
+  </div>
+</div>{% endblock %}
+{% block scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>{% endblock %}

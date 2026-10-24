@@ -1,0 +1,21 @@
+{% extends "base.html" %}{% from "_macros.html" import orders_table %}{% block title %}{{ _('Buyer Dashboard') }}{% endblock %}
+{% block content %}
+<div class="container page-head"><h1 style="font-size:2.2rem">{{ _('Buyer Dashboard') }}</h1><p>{{ _('Welcome') }}, {{ current_user.full_name }}. {{ _('Track your crop purchases, delivery status, and transport shares.') }}</p></div>
+<div class="container" style="margin-bottom:60px">
+  <div class="grid grid-4">
+    <div class="card stat"><b>{{ stats.total }}</b><span>{{ _('Order requests placed') }}</span></div>
+    <div class="card stat"><b>{{ stats.counts.get('pending', 0) }}</b><span>{{ _('Pending Orders') }}</span></div>
+    <div class="card stat"><b>{{ stats.counts.get('accepted', 0) }}</b><span>{{ _('Accepted orders') }}</span></div>
+    <div class="card stat"><b>{{ stats.committed_value|inr }}</b><span>{{ _('Total Purchases') }}</span></div>
+  </div>
+  <div class="grid grid-2" style="margin-top:24px;align-items:start">
+    <div class="card"><h3>{{ _('Orders') }} {{ _('Status') }}</h3><canvas data-chart='{{ chart|tojson }}' aria-label="{{ _('Orders') }} {{ _('Status') }}"></canvas></div>
+    <div class="card"><h3>{{ _('Discover fresh produce close to you') }}</h3><p class="muted">{{ _('Search the marketplace or look for farmers close to you.') }}</p>
+      <div class="btn-row"><a class="btn btn-primary" href="{{ url_for('main.marketplace') }}">{{ _('Explore Marketplace') }}</a>
+      <a class="btn btn-outline" href="{{ url_for('main.nearby_farmers') }}">{{ _('Nearby Farmers') }}</a>
+      <a class="btn btn-outline" href="{{ url_for('main.price_estimator') }}">{{ _('Smart Pricing') }}</a></div></div>
+  </div>
+  <div class="card" style="margin-top:24px"><div style="display:flex;justify-content:space-between"><h3>{{ _('Recent Orders') }}</h3><a href="{{ url_for('orders.list_orders') }}">{{ _('View Details') }}</a></div>
+    {{ orders_table(orders, 'buyer', url_for('orders.buyer_dashboard')) }}</div>
+</div>{% endblock %}
+{% block scripts %}<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script><script src="{{ url_for('static', filename='js/charts.js') }}" defer></script>{% endblock %}

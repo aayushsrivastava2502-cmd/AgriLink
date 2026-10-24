@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Delivery Route Planner') }}{% endblock %}
+{% block head %}
+<!-- Offline-capable Leaflet CSS with CDN fallback -->
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" onerror="this.onerror=null;">
+<style>
+  #planner-map {
+    height: 520px;
+    min-height: 520px;
+    width: 100%;
+    position: relative;
+    z-index: 1;
+    background: #E8EFE4;
+  }
+</style>
+{% endblock %}
+{% block content %}
+<div class="container page-head">
+  <h1 style="font-size:2.2rem">{{ _('Delivery Route Planner') }}</h1>
+  <p>{{ _('Interactive multi-stop delivery planning using OpenStreetMap and Nearest-Neighbour stop reordering.') }}</p>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <input type="hidden" id="csrf-token-val" name="_csrf" value="{{ csrf_token() }}">
+  <div id="planner-error" class="notice danger" style="display:none;margin-bottom:20px" role="alert"></div>
+
+  <div class="grid grid-2" style="align-items:start">
+    <!-- Configuration Panel -->
+    <div class="card">
+      <h3>1. {{ _('Route Origin') }}</h3>
+      <div class="form-grid">
+        <div class="full">
+          <label for="origin_select">{{ _('Origin Location') }}</label>
+          <select id="origin_select">
+            <optgroup label="{{ _('Regional Collection Points') }}">
+              {% for h in hubs %}
+                <option value="{{ h.latitude }},{{ h.longitude }}" data-name="{{ h.name }}" {% if default_origin and default_origin.lat == h.latitude and default_origin.lng == h.longitude %}selected{% endif %}>{{ h.name }} ({{ h.city }})</option>
+              {% endfor %}
+            </optgroup>
+            <optgroup label="{{ _('Nearby Farmers') }}">
+              {% for f in farmers[:6] %}
+                <option value="{{ f.latitude }},{{ f.longitude }}" data-name="{{ f.farmer_name }}">{{ f.farmer_name }} ({{ f.city }})</option>
+              {% endfor %}
+            </optgroup>
+          </select>
+        </div>
+      </div>
+
+      <h3 style="margin-top:20px">2. {{ _('Delivery Stops') }}</h3>
+      <div id="stops-list" style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+        <!-- Dynamic stops will be appended here -->
+      </div>
+
+      <div class="btn-row" style="margin-top:10px">
+        <select id="add_preset_select" style="max-width:240px">
+          <option value="">+ {{ _('Select a pre-set locality') }}…</option>
+          {% for name, lat, lng in presets %}
+            <option value="{{ lat }},{{ lng }}" data-name="{{ name }}">{{ name }}</option>
+          {% endfor %}
+        </select>
+        <button type="button" id="btn-optimize" class="btn btn-primary">{{ _('Optimize Route') }}</button>
+      </div>
+
+      <div style="margin-top:16px">
+        <label for="rate">{{ _('Transport Rate (₹/km)') }}</label>
+        <input id="rate" type="number" value="{{ rate }}" step="0.5" min="1" max="100" style="max-width:140px">
+      </div>
+    </div>
+
+    <!-- Map & Results Panel -->
+    <div>
+      <div class="card" style="padding:0;overflow:hidden">
+        <div id="planner-map" class="map" role="region" aria-label="{{ _('Interactive Route Map') }}"></div>
+        <div id="planner-map-fallback" class="map-fallback card">{{ _('Map tiles could not be loaded.') }}</div>
+      </div>
+      <p class="small muted" style="margin-top:8px">
+        <em>{{ _('Tip: Click anywhere on the map to add a custom delivery stop.') }}</em>
+      </p>
+
+      <div class="card" style="margin-top:16px">
+        <h4>{{ _('Route Comparison') }}</h4>
+        <dl class="kv">
+          <dt>{{ _('Optimized Route Distance') }}</dt>
+          <dd id="res-opt">{% if initial_route %}{{ initial_route.optimized_distance_km }} km{% else %}—{% endif %}</dd>
+          
+          <dt>{{ _('Standalone Travel Distance') }}</dt>
+          <dd id="res-sep">{% if initial_route %}{{ initial_route.separate_distance_km }} km{% else %}—{% endif %}</dd>
+          
+          <dt>{{ _('Travel Distance Saved') }}</dt>
+          <dd id="res-saved">{% if initial_route %}{{ initial_route.distance_saved_km }} km ({{ initial_route.distance_saved_percent }}%){% else %}—{% endif %}</dd>
+          
+          <dt>{{ _('Net Savings') }}</dt>
+          <dd id="res-cost-saved">{% if initial_route %}₹{{ initial_route.cost_saved }}{% else %}—{% endif %}</dd>
+        </dl>
+        <p class="small muted" style="margin-top:12px">
+          <strong>{{ _('Straight-line approximation disclosure') }}</strong>
+        </p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Offline local Leaflet first, with CDN fallback -->
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+<script>
+  if (typeof L === "undefined") {
+    document.write('<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>');
+  }
+</script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>
+(function () {
+  "use strict";
+
+  var defaultStops = {{ default_stops | tojson if default_stops else '[{"name": "Pari Chowk, Greater Noida", "lat": 28.4744, "lng": 77.5040}, {"name": "Surajpur Commercial Area", "lat": 28.5133, "lng": 77.5177}, {"name": "Sector 62, Noida", "lat": 28.6270, "lng": 77.3650}]' | safe }};
+  var initialRoute = {{ initial_route_json | safe if initial_route_json else 'null' }};
+
+  var stops = defaultStops.slice();
+  var stopsContainer = document.getElementById("stops-list");
+  var originSelect = document.getElementById("origin_select");
+  var addPreset = document.getElementById("add_preset_select");
+  var btnOptimize = document.getElementById("btn-optimize");
+  var rateInput = document.getElementById("rate");
+  var errBox = document.getElementById("planner-error");
+  var csrfInput = document.getElementById("csrf-token-val");
+  var csrfToken = (csrfInput ? csrfInput.value : "") || "{{ csrf_token() }}";
+
+  function showError(msg) {
+    if (errBox) {
+      errBox.textContent = msg;
+      errBox.style.display = "block";
+    }
+  }
+
+  function clearError() {
+    if (errBox) {
+      errBox.textContent = "";
+      errBox.style.display = "none";
+    }
+  }
+
+  function renderStops() {
+    stopsContainer.innerHTML = "";
+    if (stops.length === 0) {
+      var emptyNotice = document.createElement("div");
+      emptyNotice.className = "notice";
+      emptyNotice.style.margin = "0";
+      emptyNotice.textContent = window.t ? window.t("no_stops_alert", "Please add at least one delivery stop to calculate an optimized route.") : "Please add at least one delivery stop to calculate an optimized route.";
+      stopsContainer.appendChild(emptyNotice);
+      return;
+    }
+
+    stops.forEach(function (s, idx) {
+      var row = document.createElement("div");
+      row.style.cssText = "display:flex;align-items:center;justify-content:space-between;padding:8px 12px;background:#F9FAF6;border:1px solid #CFD6C8;border-radius:8px";
+      
+      var left = document.createElement("div");
+      left.style.display = "flex";
+      left.style.alignItems = "center";
+      left.style.gap = "8px";
+
+      var pinSpan = document.createElement("span");
+      pinSpan.className = "pin stop";
+      pinSpan.style.cssText = "display:inline-flex;width:22px;height:22px;font-size:11px";
+      pinSpan.textContent = idx + 1;
+      left.appendChild(pinSpan);
+
+      var nameStrong = document.createElement("strong");
+      nameStrong.textContent = s.name;
+      left.appendChild(nameStrong);
+
+      var coordSmall = document.createElement("small");
+      coordSmall.className = "muted";
+      coordSmall.textContent = "(" + Number(s.lat).toFixed(4) + ", " + Number(s.lng).toFixed(4) + ")";
+      left.appendChild(coordSmall);
+
+      row.appendChild(left);
+
+      var delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn btn-danger btn-sm";
+      delBtn.textContent = "×";
+      delBtn.style.padding = "2px 8px";
+      delBtn.setAttribute("aria-label", "Remove stop " + (idx + 1));
+      delBtn.addEventListener("click", function () {
+        stops.splice(idx, 1);
+        renderStops();
+        runOptimization();
+      });
+      row.appendChild(delBtn);
+
+      stopsContainer.appendChild(row);
+    });
+  }
+
+  function getOrigin() {
+    if (!originSelect || !originSelect.options || originSelect.options.length === 0 || originSelect.selectedIndex < 0) {
+      return { name: "Dadri Agro Logistics Hub", lat: 28.5530, lng: 77.5540 };
+    }
+    var opt = originSelect.options[originSelect.selectedIndex];
+    if (!opt || !opt.value) {
+      return { name: "Dadri Agro Logistics Hub", lat: 28.5530, lng: 77.5540 };
+    }
+    var parts = opt.value.split(",");
+    var lat = parseFloat(parts[0]);
+    var lng = parseFloat(parts[1]);
+    if (isNaN(lat) || isNaN(lng)) {
+      return { name: "Dadri Agro Logistics Hub", lat: 28.5530, lng: 77.5540 };
+    }
+    return { name: opt.dataset.name || opt.text, lat: lat, lng: lng };
+  }
+
+  function runOptimization() {
+    clearError();
+    var origin = getOrigin();
+    var rate = parseFloat(rateInput.value) || 12;
+
+    if (!stops || stops.length === 0) {
+      showError(window.t ? window.t("no_stops_alert", "Please add at least one delivery stop to calculate an optimized route.") : "Please add at least one delivery stop to calculate an optimized route.");
+      document.getElementById("res-opt").textContent = "0.0 km";
+      document.getElementById("res-sep").textContent = "0.0 km";
+      document.getElementById("res-saved").textContent = "0.0 km (0%)";
+      document.getElementById("res-cost-saved").textContent = "₹0.00";
+      if (typeof AgriMap !== "undefined") {
+        AgriMap.routeMap("planner-map", [{ lat: origin.lat, lng: origin.lng, label: origin.name, role: "origin" }]);
+      }
+      return;
+    }
+
+    if (btnOptimize) {
+      btnOptimize.disabled = true;
+    }
+
+    fetch("{{ url_for('transport.api_route_optimize') }}", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": csrfToken
+      },
+      credentials: "same-origin",
+      body: JSON.stringify({
+        origin: origin,
+        stops: stops,
+        rate: rate,
+        _csrf: csrfToken
+      })
+    })
+    .then(function (r) {
+      return r.json().catch(function () {
+        throw new Error("Invalid server response (Status " + r.status + ").");
+      });
+    })
+    .then(function (res) {
+      if (res.error) {
+        showError(res.error);
+        return;
+      }
+
+      document.getElementById("res-opt").textContent = res.optimized_distance_km + " km";
+      document.getElementById("res-sep").textContent = res.separate_distance_km + " km";
+      document.getElementById("res-saved").textContent = res.distance_saved_km + " km (" + res.distance_saved_percent + "%)";
+      document.getElementById("res-cost-saved").textContent = "₹" + res.cost_saved;
+
+      if (typeof AgriMap !== "undefined" && res.waypoints) {
+        AgriMap.routeMap("planner-map", res.waypoints);
+      }
+    })
+    .catch(function (err) {
+      console.error("Route optimization error:", err);
+      showError(window.t ? window.t("network_error", "Server or network communication error.") : "Server or network communication error.");
+    })
+    .finally(function () {
+      if (btnOptimize) {
+        btnOptimize.disabled = false;
+      }
+    });
+  }
+
+  // Interactive map click to add custom stop
+  window.onRouteMapClick = function (e) {
+    if (!e || !e.latlng) return;
+    var customLat = Number(e.latlng.lat.toFixed(5));
+    var customLng = Number(e.latlng.lng.toFixed(5));
+    var stopName = (window.t ? window.t("point_on_map", "Custom Map Stop") : "Custom Map Stop") + " (" + (stops.length + 1) + ")";
+    stops.push({ name: stopName, lat: customLat, lng: customLng });
+    renderStops();
+    runOptimization();
+  };
+
+  originSelect.addEventListener("change", runOptimization);
+  rateInput.addEventListener("input", runOptimization);
+  btnOptimize.addEventListener("click", runOptimization);
+
+  if (addPreset) {
+    addPreset.addEventListener("change", function () {
+      if (!addPreset.value) return;
+      var opt = addPreset.options[addPreset.selectedIndex];
+      var parts = opt.value.split(",");
+      stops.push({ name: opt.dataset.name || opt.text, lat: parseFloat(parts[0]), lng: parseFloat(parts[1]) });
+      addPreset.value = "";
+      renderStops();
+      runOptimization();
+    });
+  }
+
+  renderStops();
+
+  // Instant initialization using pre-rendered server route if map library is ready
+  if (initialRoute && initialRoute.waypoints && typeof AgriMap !== "undefined") {
+    AgriMap.routeMap("planner-map", initialRoute.waypoints);
+  } else {
+    runOptimization();
+  }
+})();
+</script>
+{% endblock %}

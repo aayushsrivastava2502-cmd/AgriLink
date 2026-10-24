@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% block title %}{{ _('Login') }}{% endblock %}
+{% block content %}<section class="section"><div class="container form-card">
+  <div class="card">
+    <h1 style="font-size:2rem">{{ _('Login to AgriLink AI') }}</h1>
+    <p class="muted">{{ _('Enter your email and password to access your dashboard.') }}</p>
+    <form method="post" novalidate>{{ csrf() }}
+      <p><label for="email">{{ _('Email Address') }}</label><input id="email" name="email" type="email" required autocomplete="email" value="{{ email }}"></p>
+      <p><label for="password">{{ _('Password') }}</label><input id="password" name="password" type="password" required autocomplete="current-password"></p>
+      <button class="btn btn-primary btn-block">{{ _('Log in') }}</button>
+    </form>
+    <p class="small muted" style="margin-top:16px">{{ _("Don't have an account?") }} <a href="{{ url_for('auth.register') }}">{{ _('Create an Account') }}</a></p>
+    <div class="notice small" style="margin-top:12px"><strong>{{ _('Demo Accounts') }}</strong> ({{ _('fictional demo accounts for testing') }}, {{ _('password') }}: <code>{{ demo_password }}</code>):<br>
+      {{ _('Farmer') }}: <code>farmer1@demo.agrilink.test</code> · {{ _('Buyer') }}: <code>buyer1@demo.agrilink.test</code></div>
+  </div></div></section>{% endblock %}

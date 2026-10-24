@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ _('Start a New Group Pool') }}{% endblock %}
+{% block content %}
+<section class="section">
+  <div class="container form-card">
+    <div class="card">
+      <h1 style="font-size:2rem">{{ _('Start a New Group Pool') }}</h1>
+      <p class="muted">{{ _('Pool buyer demand for produce from nearby farmers to unlock bulk freight savings.') }}</p>
+
+      <form method="post" action="{{ url_for('transport.new_group_pool') }}">
+        {{ csrf() }}
+        <div class="form-grid">
+          <div class="full">
+            <label for="listing_id">{{ _('Select Listing to Pool') }}</label>
+            <select id="listing_id" name="listing_id" required>
+              <option value="">{{ _('Choose…') }}</option>
+              {% for l in active_listings %}
+                <option value="{{ l.id }}" {% if listing and listing.id == l.id %}selected{% endif %}>
+                  {{ _(l.crop_name) if l.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else l.crop_name }} ({{ l.quantity_kg|kg }} {{ _('available') }} @ {{ l.price_per_kg|inr }}/kg) — {{ l.farmer_name }}, {{ l.city }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="full">
+            <label for="target_area">{{ _('Delivery Locality / Sector') }}</label>
+            <input id="target_area" name="target_area" type="text" required placeholder="e.g. Pari Chowk, Greater Noida" value="{{ loc[2] if loc else '' }}">
+          </div>
+
+          <div>
+            <label for="preset">{{ _('Select a pre-set locality') }}</label>
+            <select id="preset">
+              <option value="">{{ _('Choose…') }}</option>
+              {% for name, lat, lng in presets %}
+                <option value="{{ lat }},{{ lng }}">{{ name }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label for="min_total_kg">{{ _('Target Quantity (kg)') }}</label>
+            <input id="min_total_kg" name="min_total_kg" type="number" step="5" min="10" value="50" required>
+          </div>
+
+          <div>
+            <label for="target_lat">{{ _('Latitude') }}</label>
+            <input id="target_lat" name="target_lat" type="number" step="any" required value="{{ loc[0] if loc else '28.4744' }}">
+          </div>
+
+          <div>
+            <label for="target_lng">{{ _('Longitude') }}</label>
+            <input id="target_lng" name="target_lng" type="number" step="any" required value="{{ loc[1] if loc else '77.5040' }}">
+          </div>
+
+          <div class="full">
+            <label for="notes">{{ _('Message') }} <span class="muted">({{ _('optional') }})</span></label>
+            <textarea id="notes" name="notes" placeholder="{{ _('Message for the Farmer (optional)') }}"></textarea>
+          </div>
+        </div>
+
+        <div class="btn-row" style="margin-top:20px">
+          <button class="btn btn-primary">{{ _('Create Group Pool') }}</button>
+          <a class="btn btn-outline" href="{{ url_for('transport.list_group_pools') }}">{{ _('Cancel') }}</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    var preset = document.getElementById("preset");
+    var latI = document.getElementById("target_lat"), lngI = document.getElementById("target_lng");
+    var areaI = document.getElementById("target_area");
+    if (preset && latI && lngI) {
+      preset.addEventListener("change", function () {
+        if (!preset.value) return;
+        var parts = preset.value.split(",");
+        latI.value = parts[0];
+        lngI.value = parts[1];
+        if (areaI && !areaI.value) {
+          areaI.value = preset.options[preset.selectedIndex].text;
+        }
+      });
+    }
+  })();
+</script>
+{% endblock %}

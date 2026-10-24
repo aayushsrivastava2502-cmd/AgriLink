@@ -1,0 +1,164 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ _('Propose Shared Delivery Trip') }}{% endblock %}
+{% block content %}
+<div class="container page-head">
+  <h1 style="font-size:2.2rem">{{ _('Propose a New Shared Delivery Trip') }}</h1>
+  <p>{{ _('Group compatible customer orders into shared delivery routes to reduce logistics costs.') }}</p>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <form method="post" action="{{ url_for('transport.new_shared_trip') }}" class="card">
+    {{ csrf() }}
+    <h3>1. {{ _('Select Orders for this Trip') }}</h3>
+    <p class="small muted">{{ _('Only accepted delivery orders with coordinates can be clustered.') }}</p>
+
+    {% if eligible %}
+      <div class="table-wrap" style="margin-bottom:16px"><table>
+        <thead>
+          <tr>
+            <th>{{ _('Select') }}</th>
+            <th>{{ _('Order #') }}</th>
+            <th>{{ _('Buyer') }}</th>
+            <th>{{ _('Destination') }}</th>
+            <th>{{ _('Crop') }}</th>
+            <th>{{ _('Quantity') }}</th>
+            <th>{{ _('Product cost') }}</th>
+            <th>{{ _('Status') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for o in eligible %}
+            <tr>
+              <td>
+                <input type="checkbox" name="order_ids" value="{{ o.id }}" {% if o.id in selected_ids %}checked{% endif %} style="width:20px;height:20px;cursor:pointer">
+              </td>
+              <td><strong>#{{ o.id }}</strong></td>
+              <td>{{ o.buyer_name }}<div class="small muted">{{ o.buyer_phone }}</div></td>
+              <td>{{ o.delivery_address or o.buyer_city }}</td>
+              <td>{{ _(o.crop_name) if o.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else o.crop_name }}</td>
+              <td>{{ o.quantity_kg|kg }}</td>
+              <td>{{ o.product_cost|inr(true) }}</td>
+              <td><span class="badge {{ o.status }}">{{ _(o.status) }}</span></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <div class="empty">
+        <p>{{ _('No eligible delivery orders found. To group orders, you need at least two pending or accepted delivery orders.') }}</p>
+        <a class="btn btn-outline" href="{{ url_for('orders.list_orders') }}">{{ _('Orders') }}</a>
+      </div>
+    {% endif %}
+
+    <h3 style="margin-top:24px">2. {{ _('Allocation Method') }}</h3>
+    <div class="form-grid">
+      <div>
+        <label for="rate">{{ _('Transport Rate (₹/km)') }}</label>
+        <input id="rate" name="rate" type="number" step="0.5" min="1" max="100" value="{{ rate }}">
+        <div class="hint">{{ _('Illustrative rate you can change.') }}</div>
+      </div>
+
+      <div>
+        <label for="allocation_method">{{ _('Allocation Method') }}</label>
+        <select id="allocation_method" name="allocation_method">
+          <option value="proportional_weight" {% if method == 'proportional_weight' %}selected{% endif %}>
+            {{ _('Proportional by Weight') }}
+          </option>
+          <option value="proportional_standalone" {% if method == 'proportional_standalone' %}selected{% endif %}>
+            {{ _('Proportional by Standalone Cost') }}
+          </option>
+        </select>
+      </div>
+
+      <div>
+        <label for="collection_point_id">{{ _('Origin / Hub') }}</label>
+        <select id="collection_point_id" name="collection_point_id">
+          <option value="">{{ _('Farm Pickup') }} ({{ _('Direct Delivery') }})</option>
+          {% for h in hubs %}
+            <option value="{{ h.id }}">{{ h.name }} ({{ h.city }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label for="notes">{{ _('Message') }} <span class="muted">({{ _('optional') }})</span></label>
+        <input id="notes" name="notes" type="text" placeholder="{{ _('Message for the Farmer (optional)') }}">
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:24px">
+      <button type="submit" name="action" value="preview" class="btn btn-outline">{{ _('Simulate & Compare') }}</button>
+      {% if proposal %}
+        <button type="submit" name="action" value="confirm" class="btn btn-primary">{{ _('Create Shared Delivery Trip') }}</button>
+      {% endif %}
+    </div>
+  </form>
+
+  <!-- Proposal Preview Section -->
+  {% if proposal %}
+    <div class="card" style="margin-top:24px;border:2px solid var(--green-600)">
+      <div style="display:flex;justify-content:space-between;align-items:start;flex-wrap:wrap;gap:12px">
+        <div>
+          <h3>{{ _('Trip Summary & Cost Allocation') }}: {{ proposal.destination_area }}</h3>
+          <p class="small muted">{{ _('Origin / Hub') }}: <strong>{{ proposal.origin_name }}</strong> · {{ _('Transport Rate') }}: <strong>{{ proposal.rate_per_km|inr }}/km</strong></p>
+        </div>
+        <div style="text-align:right">
+          <span class="diff-pill good" style="font-size:1.1rem;padding:6px 14px">{{ _('Estimated Savings') }}: {{ proposal.total_savings|inr }} ({{ proposal.savings_percent }}%)</span>
+        </div>
+      </div>
+
+      <div class="grid grid-3" style="margin-top:16px">
+        <div class="card" style="background:#FEF2F2">
+          <div class="small muted">{{ _('Standalone Delivery Cost') }}</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#991B1B">{{ proposal.separate_total_cost|inr(true) }}</div>
+        </div>
+        <div class="card" style="background:#EFF6FF">
+          <div class="small muted">{{ _('Shared Delivery Cost') }}</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#1E40AF">{{ proposal.shared_total_cost|inr(true) }}</div>
+          <div class="small muted">≈ {{ proposal.total_distance_km }} km ({{ _('straight line') }})</div>
+        </div>
+        <div class="card" style="background:#ECFDF5">
+          <div class="small muted">{{ _('Net Savings') }}</div>
+          <div style="font-size:1.6rem;font-weight:800;color:#065F46">{{ proposal.total_savings|inr(true) }}</div>
+          <div class="small muted">{{ proposal.savings_percent }}% {{ _('Saved') }}</div>
+        </div>
+      </div>
+
+      <h4 style="margin-top:20px">{{ _('Allocated Share') }} ({{ _(proposal.allocation_method) }})</h4>
+      <div class="table-wrap"><table>
+        <thead>
+          <tr>
+            <th>{{ _('Stops') }}</th>
+            <th>{{ _('Order #') }}</th>
+            <th>{{ _('Buyer') }}</th>
+            <th>{{ _('Crop') }}</th>
+            <th>{{ _('Quantity') }}</th>
+            <th>{{ _('Standalone Cost') }}</th>
+            <th>{{ _('Allocated Share') }}</th>
+            <th>{{ _('Estimated Buyer Savings') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in proposal.stops %}
+            <tr>
+              <td><span class="pin stop" style="width:24px;height:24px;display:inline-flex;margin-right:6px">{{ s.stop_sequence }}</span> {{ _('Stop') }} {{ s.stop_sequence }}</td>
+              <td><strong>#{{ s.order_id }}</strong></td>
+              <td>{{ s.buyer_name }}</td>
+              <td>{{ _(s.crop_name) if s.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else s.crop_name }}</td>
+              <td>{{ s.quantity_kg|kg }}</td>
+              <td>{{ s.individual_cost|inr(true) }} <small class="muted">({{ s.individual_distance_km }} km)</small></td>
+              <td><strong style="color:var(--green-900)">{{ s.allocated_cost|inr(true) }}</strong></td>
+              <td><strong style="color:var(--green-700)">-{{ s.savings|inr(true) }}</strong> ({{ s.savings_percent }}%)</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+
+      <p class="small muted" style="margin-top:12px">
+        <em>{{ _('Straight-line approximation disclosure') }}</em>
+      </p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

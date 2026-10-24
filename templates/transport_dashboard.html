@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Transport Cost Optimization') }}{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <h1 style="font-size:2.4rem">{{ _('Transport Cost Optimizer') if current_lang == 'hi' else 'Transport Cost Optimizer' }}</h1>
+    <p>{{ _('Solve the high freight cost problem with shared trips, group pools, and route planning.') }}</p>
+  </div>
+  <div class="btn-row">
+    {% if current_user and current_user.role == 'farmer' %}
+      <a class="btn btn-primary" href="{{ url_for('transport.new_shared_trip') }}">+ {{ _('Propose Shared Trip') }}</a>
+    {% endif %}
+    <a class="btn btn-accent" href="{{ url_for('transport.new_group_pool') }}">+ {{ _('Start a New Group Pool') }}</a>
+    <a class="btn btn-outline" href="{{ url_for('transport.route_planner') }}">{{ _('Route Planner') }}</a>
+  </div>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <!-- Key Metrics Banner -->
+  <div class="grid grid-4">
+    <div class="card stat">
+      <b>{{ metrics.total_savings|inr }}</b>
+      <span>{{ _('Estimated Shared Savings') }} ({{ metrics.average_savings_percent }}%)</span>
+    </div>
+    <div class="card stat">
+      <b>{{ metrics.consolidated_orders_count }}</b>
+      <span>{{ _('Orders') }} ({{ _('Shared Trip') }})</span>
+    </div>
+    <div class="card stat">
+      <b>{{ metrics.total_kg_transported }} kg</b>
+      <span>{{ _('Total Volume Consolidated') }}</span>
+    </div>
+    <div class="card stat">
+      <b>{{ metrics.group_pools_count }}</b>
+      <span>{{ _('Active Group Pools') }}</span>
+    </div>
+  </div>
+
+  <div class="notice" style="margin-top:20px;background:#F0FDF4;border-color:var(--green-600)">
+    <strong>{{ _('Shared Transportation') }}:</strong> {{ _('Group compatible customer orders into shared delivery routes to reduce logistics costs.') }} <em>{{ _('Straight-line approximation disclosure') }}</em>
+  </div>
+
+  <!-- Interactive Savings Simulator -->
+  <div class="card" style="margin-top:24px">
+    <h3>{{ _('Cost Comparison Simulator') }}</h3>
+    <p class="small muted">{{ _('Compare Standalone vs Shared Delivery') }}</p>
+    
+    <form method="get" action="{{ url_for('transport.dashboard') }}" class="filters" style="margin-bottom:20px">
+      <div>
+        <label for="sim_dist">{{ _('Distance (km)') }}</label>
+        <input id="sim_dist" name="sim_dist" type="number" step="0.5" min="1" max="150" value="{{ simulation.dist }}">
+      </div>
+      <div>
+        <label for="sim_stops">{{ _('Number of Stops') }}</label>
+        <input id="sim_stops" name="sim_stops" type="number" min="2" max="10" value="{{ simulation.stops }}">
+      </div>
+      <div>
+        <label for="sim_qty">{{ _('Quantity (kg)') }}</label>
+        <input id="sim_qty" name="sim_qty" type="number" min="5" step="5" value="{{ simulation.qty }}">
+      </div>
+      <div>
+        <label for="rate">{{ _('Transport Rate (₹/km)') }}</label>
+        <input id="rate" name="rate" type="number" step="0.5" min="1" max="100" value="{{ rate }}">
+      </div>
+      <div>
+        <button class="btn btn-primary btn-block">{{ _('Simulate & Compare') }}</button>
+      </div>
+    </form>
+
+    <div class="grid grid-3" style="margin-top:16px">
+      <div class="card" style="background:#FEF2F2;border-color:#FCA5A5">
+        <h4 style="margin:0 0 6px;color:#991B1B">{{ _('Standalone Delivery Cost') }}</h4>
+        <div style="font-size:1.8rem;font-weight:800;color:#991B1B">{{ simulation.separate_cost|inr(true) }}</div>
+        <div class="small muted">≈ {{ simulation.separate_dist }} km ({{ simulation.stops }} {{ _('Separate Deliveries') }}).</div>
+      </div>
+      <div class="card" style="background:#EFF6FF;border-color:#BFDBFE">
+        <h4 style="margin:0 0 6px;color:#1E40AF">{{ _('Shared Delivery Cost') }}</h4>
+        <div style="font-size:1.8rem;font-weight:800;color:#1E40AF">{{ simulation.shared_cost|inr(true) }}</div>
+        <div class="small muted">≈ {{ simulation.shared_dist }} km. {{ _('Your Delivery Share') }}: <strong>{{ simulation.cost_per_order|inr(true) }}</strong>.</div>
+      </div>
+      <div class="card" style="background:#ECFDF5;border-color:#A7F3D0">
+        <h4 style="margin:0 0 6px;color:#065F46">{{ _('Net Savings') }}</h4>
+        <div style="font-size:1.8rem;font-weight:800;color:#065F46">{{ simulation.savings|inr(true) }}</div>
+        <div><span class="diff-pill good">{{ simulation.savings_pct }}% {{ _('Saved') }}</span></div>
+        <div class="small muted" style="margin-top:4px">{{ _('Proportional by Weight') }} / {{ _('Proportional by Standalone Cost') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Navigation Grid to Submodules -->
+  <div class="grid grid-2" style="margin-top:24px;align-items:start">
+    <!-- Shared Trips Section -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3>{{ _('Shared Delivery Trips') }}</h3>
+        <a href="{{ url_for('transport.list_shared_trips') }}" class="small">{{ _('View Details') }} ({{ metrics.active_trips_count }})</a>
+      </div>
+      <p class="small muted">{{ _('Group compatible customer orders into shared delivery routes to reduce logistics costs.') }}</p>
+      {% if recent_trips %}
+        <div class="table-wrap"><table>
+          <thead><tr><th>{{ _('Trip Code') }}</th><th>{{ _('Farmer') }}</th><th>{{ _('Destination') }}</th><th>{{ _('Orders') }}</th><th>{{ _('Estimated Savings') }}</th><th>{{ _('Status') }}</th><th></th></tr></thead>
+          <tbody>
+            {% for t in recent_trips %}
+              <tr>
+                <td><strong>{{ t.trip_code }}</strong></td>
+                <td>{{ t.farmer_name }}</td>
+                <td>{{ t.destination_area }}</td>
+                <td>{{ t.order_count }} ({{ t.total_kg|kg }})</td>
+                <td><strong style="color:var(--green-700)">{{ t.total_savings|inr }}</strong> ({{ t.savings_percent }}%)</td>
+                <td><span class="badge {{ t.status }}">{{ _(t.status) }}</span></td>
+                <td><a class="btn btn-outline btn-sm" href="{{ url_for('transport.trip_details', trip_id=t.id) }}">{{ _('View Details') }}</a></td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table></div>
+      {% else %}
+        <div class="empty">{{ _('No shared trips created yet.') }}</div>
+      {% endif %}
+      {% if current_user and current_user.role == 'farmer' %}
+        <div style="margin-top:14px"><a class="btn btn-primary btn-sm" href="{{ url_for('transport.new_shared_trip') }}">+ {{ _('Propose Shared Trip') }}</a></div>
+      {% endif %}
+    </div>
+
+    <!-- Group Ordering Pools Section -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3>{{ _('Group Ordering Pools') }}</h3>
+        <a href="{{ url_for('transport.list_group_pools') }}" class="small">{{ _('View Group Pools') }} ({{ metrics.group_pools_count }})</a>
+      </div>
+      <p class="small muted">{{ _('Pool buyer demand for produce from nearby farmers to unlock bulk freight savings.') }}</p>
+      {% if active_pools %}
+        <div style="display:flex;flex-direction:column;gap:12px">
+          {% for p in active_pools %}
+            <div style="border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px">
+              <div style="display:flex;justify-content:space-between;align-items:start">
+                <div>
+                  <strong>{{ _(p.crop_name) if p.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else p.crop_name }}</strong> · <span class="price">{{ p.price_per_kg|inr }}/kg</span>
+                  <div class="small muted">📍 {{ p.target_delivery_area }} · {{ _('Farmer') }}: {{ p.farmer_name }}</div>
+                </div>
+                <span class="badge {{ p.status }}">{{ _(p.status) }}</span>
+              </div>
+              <div style="margin-top:8px">
+                <div class="small" style="display:flex;justify-content:space-between">
+                  <span>{{ _('Current Quantity') }}: <strong>{{ p.current_total_kg }} kg</strong></span>
+                  <span>{{ _('Target Quantity') }}: <strong>{{ p.min_total_kg }} kg</strong> ({{ p.progress_percent }}%)</span>
+                </div>
+                <div class="progress-bar"><div class="progress-fill" style="width:{{ p.progress_percent }}%"></div></div>
+              </div>
+              <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center">
+                <span class="small muted">👥 {{ p.member_count }} {{ _('Buyer / Customer') }}</span>
+                <a class="btn btn-outline btn-sm" href="{{ url_for('transport.pool_details', pool_id=p.id) }}">{{ _('Join Group Pool') }}</a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty">{{ _('No active group pools.') }}</div>
+      {% endif %}
+      <div style="margin-top:14px"><a class="btn btn-accent btn-sm" href="{{ url_for('transport.new_group_pool') }}">+ {{ _('Start a New Group Pool') }}</a></div>
+    </div>
+  </div>
+
+  <!-- Collection Points & Route Planning Shortcuts -->
+  <div class="grid grid-2" style="margin-top:24px">
+    <div class="card">
+      <h3>{{ _('Regional Collection Points') }}</h3>
+      <p class="small muted">{{ _('Consolidate produce at regional hubs to streamline distribution and lower rural freight costs.') }}</p>
+      <ul>
+        {% for h in hubs %}
+          <li style="margin-bottom:8px">
+            <strong>{{ h.name }}</strong> ({{ h.city }}) — <span class="muted small">{{ h.address }}</span>
+            <div><small class="muted">{{ _('Operating Hours') }}: {{ h.operating_hours }} · {{ _('Phone') }}: {{ h.contact_phone }}</small></div>
+          </li>
+        {% endfor %}
+      </ul>
+      <a class="btn btn-outline btn-sm" href="{{ url_for('transport.collection_points') }}">{{ _('Explore Collection Hubs') }}</a>
+    </div>
+
+    <div class="card">
+      <h3>{{ _('Delivery Route Planner') }}</h3>
+      <p class="small muted">{{ _('Interactive multi-stop delivery planning using OpenStreetMap and Nearest-Neighbour stop reordering.') }}</p>
+      <ul class="check">
+        <li>{{ _('Straight-line approximation disclosure') }}</li>
+        <li>{{ _('Automatic stop sequence optimization to reduce travel') }}</li>
+        <li>{{ _('Clear disclosures when external road routing is offline') }}</li>
+        <li>{{ _('Transparent cost allocation per participating order') }}</li>
+      </ul>
+      <a class="btn btn-primary btn-sm" href="{{ url_for('transport.route_planner') }}">{{ _('Launch Route Planner') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,67 @@
+{% extends "base.html" %}{% from "_macros.html" import csrf %}{% block title %}{{ _(l.crop_name) if l.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else l.crop_name }} - {{ l.farmer_name }}{% endblock %}
+{% block head %}{% if l.latitude is not none %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endif %}{% endblock %}
+{% block content %}
+<div class="container page-head"><a href="{{ url_for('main.marketplace') }}" class="small">← {{ _('Back to marketplace') }}</a></div>
+<div class="container split" style="margin-bottom:60px">
+  <div>
+    <div class="card" style="padding:0;overflow:hidden"><img src="{{ l|crop_image }}" alt="{{ l.crop_name }}" style="width:100%;aspect-ratio:400/260;object-fit:cover"></div>
+    {% if l.latitude is not none %}
+      <h3 style="margin-top:24px">{{ _('Farm location') }}</h3>
+      <div id="detail-map" class="map small" role="region" aria-label="{{ _('Farm location') }}"></div>
+      <div id="detail-map-fallback" class="map-fallback card small">{{ _('Map tiles could not be loaded.') }} {{ _('Location') }}: {{ l.city }}, {{ l.state }} ({{ '%.4f'|format(l.latitude) }}, {{ '%.4f'|format(l.longitude) }}).</div>
+      <p class="small"><a target="_blank" rel="noopener" href="https://www.openstreetmap.org/?mlat={{ l.latitude }}&mlon={{ l.longitude }}#map=14/{{ l.latitude }}/{{ l.longitude }}">{{ _('Open in OpenStreetMap') }} ↗</a></p>
+    {% endif %}
+  </div>
+  <div>
+    <h1 style="font-size:2.3rem;margin-bottom:6px">{{ _(l.crop_name) if l.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else l.crop_name }}</h1>
+    <p>
+      <span class="badge {{ l.quality }}">{{ _(l.quality) }}</span> <span class="badge">{{ _(l.category) }}</span>
+      {% if l.status != 'active' %}<span class="badge {{ l.status }}">{{ _(l.status) }}</span>{% endif %}
+      {% if l.is_demo %}<span class="badge demo">{{ _('Demo data · fictional') }}</span>{% endif %}
+    </p>
+    <div class="price" style="font-size:2.2rem">{{ l.price_per_kg|inr(true) }}<small>/kg ({{ _('Asking Price') }})</small></div>
+    <dl class="kv" style="margin:16px 0">
+      <dt>{{ _('Available Quantity') }}</dt><dd>{{ l.quantity_kg|kg }}</dd>
+      <dt>{{ _('Harvest Date') }}</dt><dd>{{ l.harvest_date|fmt_date }}</dd>
+      <dt>{{ _('City / Village') }}</dt><dd>{{ l.city }}, {{ l.state }}</dd>
+      <dt>{{ _('Farmer') }}</dt><dd>{{ l.farmer_name }} <span class="muted small">({{ _('member since') }} {{ l.farmer_since|fmt_date }})</span></dd>
+      {% if distance is not none %}<dt>{{ _('Distance from you') }}</dt><dd>≈ {{ '%.1f'|format(distance) }} km ({{ _('straight line') }})</dd>{% endif %}
+    </dl>
+    {% if l.description %}<p>{{ l.description }}</p>{% endif %}
+    <p><a class="btn btn-outline btn-sm" href="{{ url_for('main.price_estimator', listing=l.id) }}">{{ _('Calculate Fair Price') }}</a>
+       <a class="btn btn-outline btn-sm" href="{{ url_for('main.marketplace', farmer=l.farmer_id) }}">{{ _('More from this farmer') }}</a>
+       <a class="btn btn-outline btn-sm" href="{{ url_for('transport.new_group_pool', listing=l.id) }}">{{ _('View or Start Group Pool') }}</a></p>
+
+    <div class="card" id="order" style="margin-top:20px">
+      <h3>{{ _('Send an order request') if current_lang == 'hi' else 'Send an order request' }}</h3>
+      {% if is_owner %}<p class="muted">{{ _('This is your own listing.') }} <a href="{{ url_for('farmer.edit_listing', listing_id=l.id) }}">{{ _('Edit') }}</a>.</p>
+      {% elif l.status != 'active' %}<p class="muted">{{ _('This listing is not accepting requests right now.') }}</p>
+      {% elif not current_user %}<p><a class="btn btn-primary" href="{{ url_for('auth.login', next=request.path ~ '#order') }}">{{ _('Login') }}</a> {{ _('or') }} <a href="{{ url_for('auth.register', role='buyer') }}">{{ _('Buy as a customer') }}</a>.</p>
+      {% elif current_user.role != 'buyer' %}<p class="muted">{{ _('Farmer accounts cannot place orders. Use a buyer account.') }}</p>
+      {% else %}
+      <form method="post" action="{{ url_for('orders.create', listing_id=l.id) }}" data-order-form data-price="{{ l.price_per_kg }}" data-max="{{ l.quantity_kg }}" {% if transport is not none %}data-transport="{{ transport }}"{% endif %}>
+        {{ csrf() }}
+        <p><label for="quantity_kg">{{ _('Quantity (kg)') }}</label><input id="quantity_kg" name="quantity_kg" type="number" step="0.01" min="0.01" max="{{ l.quantity_kg }}" required>
+          <span class="field-error" id="qty-warning" aria-live="polite"></span></p>
+        <p><label>{{ _('Delivery Preference') }}</label><span class="radio-row"><label><input type="radio" name="delivery_preference" value="pickup" checked> {{ _('Farm Pickup') }}</label><label><input type="radio" name="delivery_preference" value="delivery"> {{ _('Direct Delivery to Door') }}</label></span></p>
+        <p><label for="delivery_address">{{ _('Delivery Address') }} <span class="muted">({{ _('optional') }})</span></label><input id="delivery_address" name="delivery_address" type="text" placeholder="{{ _('Delivery Address / Locality') }}" value="{{ loc[2] if loc else '' }}"></p>
+        {% if loc %}<input type="hidden" name="delivery_lat" value="{{ loc[0] }}"><input type="hidden" name="delivery_lng" value="{{ loc[1] }}">{% endif %}
+        <p><label for="message">{{ _('Message for the Farmer (optional)') }}</label><textarea id="message" name="message" maxlength="500"></textarea></p>
+        <dl class="kv" style="margin-bottom:12px">
+          <dt>{{ _('Product Subtotal') }}</dt><dd id="order-total">—</dd>
+          {% if transport is not none %}<dt>{{ _('Estimated Transport Cost') }}</dt><dd>{{ transport|inr(true) }} <span class="muted small">({{ '%.1f'|format(distance) }} km × {{ rate|inr }}/km)</span></dd>
+          <dt>{{ _('Estimated Delivered Total') }}</dt><dd id="delivered-total">—</dd>{% endif %}
+        </dl>
+        <p class="small muted">{{ _('Product cost = quantity × unit price. Transport is an estimate. Stock is reserved when the farmer accepts.') }}</p>
+        <button class="btn btn-primary btn-block">{{ _('Send order request') if current_lang == 'hi' else 'Send order request' }}</button>
+      </form>
+      {% if transport is none %}<p class="small muted" style="margin-top:10px">{{ _('Want an estimated delivered cost?') }} <a href="{{ url_for('main.nearby_farmers') }}">{{ _('Find Nearby Farmers') }}</a>.</p>{% endif %}
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}{% if l.latitude is not none %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>AgriMap.single("detail-map", {{ l.latitude }}, {{ l.longitude }}, {{ (l.farmer_name ~ ' · ' ~ l.crop_name)|tojson }});</script>{% endif %}{% endblock %}

@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Regional Collection Points') }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<div class="container page-head">
+  <h1 style="font-size:2.2rem">{{ _('Regional Collection Points') }}</h1>
+  <p>{{ _('Consolidate produce at regional hubs to streamline distribution and lower rural freight costs.') }}</p>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <!-- Map of Collection Points -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="hubs-map" class="map" role="region" aria-label="{{ _('Regional Collection Points') }}"></div>
+    <div id="hubs-map-fallback" class="map-fallback card">{{ _('Map tiles could not be loaded.') }}</div>
+  </div>
+  <p class="small muted" style="margin-top:8px">{{ _('Blue pin = your location') }}, 🏢 = {{ _('Regional Collection Points') }}.</p>
+
+  <!-- Hub Selection & Directory -->
+  <div class="grid grid-4" style="margin-top:24px">
+    {% for h in hubs %}
+      <div class="card" style="border:2px solid {% if selected_hub and selected_hub.id == h.id %}var(--green-600){% else %}var(--line){% endif %}">
+        <h4 style="margin:0 0 4px">{{ h.name }}</h4>
+        <div class="small muted">📍 {{ h.address }}, {{ h.city }}</div>
+        <dl class="kv" style="margin:10px 0;font-size:0.85rem">
+          <dt>{{ _('Operating Hours') }}</dt><dd>{{ h.operating_hours }}</dd>
+          <dt>{{ _('Available Quantity') }}</dt><dd>{{ h.capacity_kg|kg }}</dd>
+          <dt>{{ _('Phone') }}</dt><dd>☎ {{ h.contact_phone }}</dd>
+        </dl>
+        <a class="btn btn-outline btn-block btn-sm" href="{{ url_for('transport.collection_points', hub=h.id) }}">
+          {% if selected_hub and selected_hub.id == h.id %}{{ _('Selected Hub ✓') }}{% else %}{{ _('View Details') }}{% endif %}
+        </a>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Produce and Cost Comparison for Selected Hub -->
+  {% if selected_hub %}
+    <div class="card" style="margin-top:24px">
+      <h3>{{ _('Active Produce Available Near') if current_lang == 'hi' else 'Active Produce Available Near' }} {{ selected_hub.name }}</h3>
+      <p class="small muted">{{ _('Farmers within 30 km radius of this consolidation depot.') }}</p>
+
+      {% if nearby_crops %}
+        <div class="table-wrap"><table>
+          <thead>
+            <tr>
+              <th>{{ _('Crop') }}</th>
+              <th>{{ _('Farmer') }}</th>
+              <th>{{ _('Available Quantity') }}</th>
+              <th>{{ _('Price') }}</th>
+              <th>{{ _('Quality') }}</th>
+              <th>{{ _('Distance') }}</th>
+              <th>{{ _('Actions') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in nearby_crops %}
+              <tr>
+                <td><strong>{{ _(c.crop_name) if c.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else c.crop_name }}</strong></td>
+                <td>{{ c.farmer_name }}<div class="small muted">{{ c.farmer_city }}</div></td>
+                <td>{{ c.quantity_kg|kg }}</td>
+                <td>{{ c.price_per_kg|per_kg }}</td>
+                <td><span class="badge {{ c.quality }}">{{ _(c.quality) }}</span></td>
+                <td>≈ {{ c.distance_to_hub_km }} km</td>
+                <td>
+                  <a class="btn btn-primary btn-sm" href="{{ url_for('main.product_detail', listing_id=c.id) }}">{{ _('Order Now') }}</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table></div>
+      {% else %}
+        <div class="empty">{{ _('No listings found') }}</div>
+      {% endif %}
+    </div>
+
+    <!-- Comparative Direct Delivery vs Hub Routing Analysis -->
+    {% if comparison %}
+      <div class="card" style="margin-top:24px;background:#F8FAFC">
+        <h3>{{ _('Compare Direct vs Hub Delivery') }}</h3>
+        <p class="small muted">{{ _('Illustrative breakdown based on transport rate of') }} <strong>{{ rate|inr }}/km</strong>.</p>
+        
+        <div class="grid grid-3" style="margin-top:16px">
+          <div class="card" style="background:#fff">
+            <h4>{{ _('Direct Delivery') }}</h4>
+            <div style="font-size:1.5rem;font-weight:800">{{ comparison.direct_delivered_cost|inr(true) }}</div>
+            <div class="small muted">
+              {{ _('Product cost') }}: {{ comparison.product_cost|inr(true) }}<br>
+              {{ _('Direct Delivery Cost') }}: {{ comparison.direct_transport_cost|inr(true) }} ({{ comparison.direct_distance_km }} km)
+            </div>
+          </div>
+
+          <div class="card" style="background:#fff">
+            <h4>{{ _('Hub Delivery Cost') }}</h4>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--green-900)">{{ comparison.hub_delivered_cost|inr(true) }}</div>
+            <div class="small muted">
+              {{ _('Product cost') }}: {{ comparison.product_cost|inr(true) }}<br>
+              {{ _('Hub Delivery Cost') }}: {{ comparison.hub_transport_cost|inr(true) }} ({{ comparison.hub_total_distance_km }} km)
+            </div>
+          </div>
+
+          <div class="card" style="background:#fff">
+            <h4>{{ _('Farm Pickup') }}</h4>
+            <div style="font-size:1.5rem;font-weight:800;color:var(--green-700)">{{ comparison.hub_pickup_delivered_cost|inr(true) }}</div>
+            <div class="small muted">
+              {{ _('Product cost') }}: {{ comparison.product_cost|inr(true) }}<br>
+              {{ _('Shared Delivery') }} @ {{ selected_hub.name }}.
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endif %}
+</div>
+
+<script type="application/json" id="hubs-data">{{ hubs|tojson }}</script>
+<script type="application/json" id="user-loc-data">{{ ({'lat': loc[0], 'lng': loc[1], 'label': loc[2]} if loc else none)|tojson }}</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>
+  (function () {
+    var rawHubs = document.getElementById("hubs-data");
+    var rawUser = document.getElementById("user-loc-data");
+    if (rawHubs && typeof AgriMap !== "undefined") {
+      AgriMap.hubsMap("hubs-map", JSON.parse(rawHubs.textContent), rawUser ? JSON.parse(rawUser.textContent) : null);
+    }
+  })();
+</script>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% extends "base.html" %}{% block title %}{{ _('Edit Listing') }}{% endblock %}
+{% block content %}<section class="section"><div class="container form-card"><div class="card">
+  <h1 style="font-size:2rem">{{ _('Edit') }} {{ _(listing.crop_name) if listing.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else listing.crop_name }}</h1>
+  <p class="muted">{{ _('Status') }}: {{ _(listing.status) }}. {{ _('Setting a quantity above zero restocks a sold-out listing.') }}</p>
+  {% set submit_label = 'Save Changes' %}{% include "_listing_form.html" %}
+</div></div></section>{% endblock %}

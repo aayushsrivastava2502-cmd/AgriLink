@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% from "_macros.html" import csrf %}
+{% block title %}{{ _('Group Ordering Pools') }}: {{ _(pool.crop_name) if pool.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else pool.crop_name }} ({{ pool.pool_code }}){% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <div style="display:flex;align-items:center;gap:10px">
+      <h1 style="font-size:2.2rem;margin:0">{{ _('Group Ordering Pools') }}: {{ _(pool.crop_name) if pool.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else pool.crop_name }}</h1>
+      <span class="badge {{ pool.status }}">{{ _(pool.status) }}</span>
+    </div>
+    <p style="margin:4px 0 0">{{ _('Pool Code') }}: <strong>{{ pool.pool_code }}</strong> · {{ _('Delivery Area') }}: <strong>{{ pool.target_delivery_area }}</strong></p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-outline" href="{{ url_for('transport.list_group_pools') }}">← {{ _('Group Ordering Pools') }}</a>
+  </div>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <div class="grid grid-2" style="align-items:start">
+    <!-- Pool Progress & Details Card -->
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:start">
+        <div>
+          <span class="badge {{ pool.quality }}">{{ _(pool.quality) }}</span> <span class="badge">{{ _(pool.category) }}</span>
+          <div class="price" style="font-size:2rem;margin-top:6px">{{ pool.price_per_kg|inr }}<small>/kg</small></div>
+        </div>
+        <div style="text-align:right">
+          <div class="small muted">{{ _('Available Stock') }}</div>
+          <strong style="font-size:1.3rem">{{ pool.current_listing_stock|kg }}</strong>
+        </div>
+      </div>
+
+      <!-- Progress Meter -->
+      <div style="margin:20px 0;background:#F9FAF6;border:1px solid var(--line);border-radius:var(--radius-sm);padding:16px">
+        <div style="display:flex;justify-content:space-between;font-weight:700;margin-bottom:6px">
+          <span>{{ _('Current Quantity') }}: {{ pool.current_total_kg }} kg</span>
+          <span>{{ _('Target Quantity') }}: {{ pool.min_total_kg }} kg ({{ pool.progress_percent }}%)</span>
+        </div>
+        <div class="progress-bar" style="height:16px">
+          <div class="progress-fill" style="width:{{ pool.progress_percent }}%"></div>
+        </div>
+        <div class="small muted" style="margin-top:6px">
+          {% if pool.current_total_kg >= pool.min_total_kg %}
+            🎉 <strong>{{ _('Target Progress') }}!</strong> {{ _('Confirm Pool & Fulfill') }}.
+          {% else %}
+            {{ _('Target Quantity') }}: {{ (pool.min_total_kg - pool.current_total_kg)|round(1) }} kg {{ _('more') }}.
+          {% endif %}
+        </div>
+      </div>
+
+      <dl class="kv">
+        <dt>{{ _('Farmer') }}</dt><dd>{{ pool.farmer_name }} ({{ pool.farmer_city }})</dd>
+        {% if pool.farmer_phone %}<dt>{{ _('Phone') }}</dt><dd>☎ {{ pool.farmer_phone }}</dd>{% endif %}
+        <dt>{{ _('Buyer') }}</dt><dd>{{ pool.creator_name }}</dd>
+        <dt>{{ _('Harvest Date') }}</dt><dd>{{ pool.created_at[:10] }}</dd>
+      </dl>
+      {% if pool.notes %}<p style="margin-top:14px;background:#fff;border-left:4px solid var(--green-600);padding:8px 12px"><strong>{{ _('Message') }}:</strong> {{ pool.notes }}</p>{% endif %}
+
+      <!-- Transport Savings Comparison for this Pool -->
+      <div class="card" style="margin-top:16px;background:#F0FDF4;border-color:var(--green-600)">
+        <h4 style="margin:0 0 6px">{{ _('Estimated Bulk Transport') }}</h4>
+        <p class="small muted">{{ _('Pool buyer demand for produce from nearby farmers to unlock bulk freight savings.') }}</p>
+        <div class="grid grid-3" style="margin-top:8px">
+          <div><small class="muted">{{ _('Standalone Delivery Cost') }}</small><div style="font-weight:800">{{ pool.est_separate_transport|inr(true) }}</div></div>
+          <div><small class="muted">{{ _('Shared Delivery Cost') }}</small><div style="font-weight:800;color:var(--green-900)">{{ pool.est_shared_transport|inr(true) }}</div></div>
+          <div><small class="muted">{{ _('Net Savings') }}</small><div style="font-weight:800;color:var(--green-700)">{{ pool.est_savings|inr(true) }}</div></div>
+        </div>
+      </div>
+
+      <!-- Pool Confirmation Action -->
+      {% if is_farmer_or_creator and pool.status in ('open', 'target_reached') %}
+        <div style="margin-top:20px;border-top:1px solid var(--line);padding-top:16px">
+          <h4>{{ _('Actions') }}</h4>
+          {% if pool.current_total_kg >= pool.min_total_kg %}
+            <p class="small muted">{{ _('Threshold is reached. Confirming this pool creates official order requests for each buyer and deducts stock inside an atomic transaction.') }}</p>
+            <form method="post" action="{{ url_for('transport.confirm_group_pool', pool_id=pool.id) }}" onsubmit="return confirm('{{ _('Confirm Pool & Fulfill') }}?')">
+              {{ csrf() }}
+              <button class="btn btn-primary btn-block">{{ _('Confirm Pool & Fulfill') }}</button>
+            </form>
+          {% else %}
+            <p class="small muted">{{ _('Target Quantity') }}: {{ pool.min_total_kg }} kg.</p>
+          {% endif %}
+        </div>
+      {% endif %}
+    </div>
+
+    <!-- Join Pool Form & Members List -->
+    <div>
+      {% if pool.status in ('open', 'target_reached') %}
+        <div class="card">
+          <h3>{{ _('Join Group Pool') }}</h3>
+          <p class="small muted">{{ _('Save on delivery by pooling orders with nearby neighbors.') }}</p>
+          <form method="post" action="{{ url_for('transport.pool_details', pool_id=pool.id) }}">
+            {{ csrf() }}
+            <p>
+              <label for="quantity_kg">{{ _('Quantity (kg)') }}</label>
+              <input id="quantity_kg" name="quantity_kg" type="number" step="1" min="1" max="{{ pool.current_listing_stock }}" required placeholder="e.g. 10">
+            </p>
+            <p>
+              <label for="delivery_address">{{ _('Delivery Address') }}</label>
+              <input id="delivery_address" name="delivery_address" type="text" placeholder="{{ _('Delivery Address / Locality') }}" value="{{ loc[2] if loc else '' }}">
+            </p>
+            <input type="hidden" name="dest_lat" value="{{ loc[0] if loc else pool.target_lat }}">
+            <input type="hidden" name="dest_lng" value="{{ loc[1] if loc else pool.target_lng }}">
+            <button class="btn btn-accent btn-block">{{ _('Join Group Pool') }}</button>
+            <p class="small muted" style="margin-top:8px">{{ _('No real payments are processed. Stock is reserved when the farmer accepts.') }}</p>
+          </form>
+        </div>
+      {% else %}
+        <div class="card notice">
+          {{ _('This pool has been') }} <strong>{{ _(pool.status) }}</strong>.
+        </div>
+      {% endif %}
+
+      <div class="card" style="margin-top:20px">
+        <h3>{{ _('Current Members') }} ({{ pool.member_count }})</h3>
+        {% if pool.members %}
+          <div class="table-wrap"><table>
+            <thead><tr><th>{{ _('Buyer') }}</th><th>{{ _('Quantity') }}</th><th>{{ _('Delivery Address') }}</th><th>{{ _('Placed') }}</th></tr></thead>
+            <tbody>
+              {% for m in pool.members %}
+                <tr>
+                  <td><strong>{{ m.buyer_name }}</strong></td>
+                  <td>{{ m.quantity_kg|kg }}</td>
+                  <td>{{ m.delivery_address or _('Farm Pickup') }}</td>
+                  <td>{{ m.created_at[:10] }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table></div>
+        {% else %}
+          <div class="empty">{{ _('No listings found') }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

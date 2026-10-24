@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Group Ordering Pools') }}{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <h1 style="font-size:2.2rem">{{ _('Group Ordering Pools') }}</h1>
+    <p>{{ _('Pool buyer demand for produce from nearby farmers to unlock bulk freight savings.') }}</p>
+  </div>
+  <div class="btn-row">
+    <a class="btn btn-accent" href="{{ url_for('transport.new_group_pool') }}">+ {{ _('Start a New Group Pool') }}</a>
+    <a class="btn btn-outline" href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a>
+  </div>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <form method="get" action="{{ url_for('transport.list_group_pools') }}" class="filters card" style="margin-bottom:20px">
+    <div>
+      <label for="crop">{{ _('Crop Name') }}</label>
+      <input id="crop" name="crop" type="text" placeholder="{{ _('e.g. Tomato') }}" value="{{ crop }}">
+    </div>
+    <div>
+      <label for="status">{{ _('Status') }}</label>
+      <select id="status" name="status">
+        <option value="">{{ _('All') }}</option>
+        <option value="open" {% if status == 'open' %}selected{% endif %}>{{ _('open') }}</option>
+        <option value="target_reached" {% if status == 'target_reached' %}selected{% endif %}>{{ _('confirmed') }}</option>
+        <option value="confirmed" {% if status == 'confirmed' %}selected{% endif %}>{{ _('completed') }}</option>
+      </select>
+    </div>
+    <div><button class="btn btn-primary btn-block">{{ _('Apply Filters') }}</button></div>
+    <div><a class="btn btn-outline btn-block" href="{{ url_for('transport.list_group_pools') }}">{{ _('Reset') }}</a></div>
+  </form>
+
+  {% if pools %}
+    <div class="grid grid-3">
+      {% for p in pools %}
+        <div class="card" style="display:flex;flex-direction:column;justify-content:space-between">
+          <div>
+            <div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:8px">
+              <span class="badge {{ p.status }}">{{ _(p.status) }}</span>
+              <span class="price" style="font-size:1.4rem">{{ p.price_per_kg|inr }}<small>/kg</small></span>
+            </div>
+            <h3 style="margin:4px 0"><a href="{{ url_for('transport.pool_details', pool_id=p.id) }}" style="text-decoration:none">{{ _(p.crop_name) if p.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else p.crop_name }}</a></h3>
+            <div class="small muted">{{ _('Farmer') }}: <strong>{{ p.farmer_name }}</strong></div>
+            <div class="small muted">📍 {{ _('Destination') }}: <strong>{{ p.target_delivery_area }}</strong></div>
+
+            <div style="margin:16px 0 8px">
+              <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px">
+                <span>{{ _('Current Quantity') }}: <strong>{{ p.current_total_kg }} kg</strong></span>
+                <span>{{ _('Target Quantity') }}: <strong>{{ p.min_total_kg }} kg</strong></span>
+              </div>
+              <div class="progress-bar">
+                <div class="progress-fill" style="width:{{ p.progress_percent }}%"></div>
+              </div>
+              <div class="small muted" style="text-align:right">{{ p.progress_percent }}% {{ _('Target Progress') }}</div>
+            </div>
+
+            {% if p.notes %}
+              <p class="small" style="color:var(--muted)">“{{ p.notes }}”</p>
+            {% endif %}
+          </div>
+
+          <div style="margin-top:16px;border-top:1px solid var(--line);padding-top:12px;display:flex;justify-content:space-between;align-items:center">
+            <span class="small muted">👥 {{ p.member_count }} {{ _('Buyer / Customer') }}</span>
+            <a class="btn btn-outline btn-sm" href="{{ url_for('transport.pool_details', pool_id=p.id) }}">{{ _('Join Group Pool') }}</a>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="card empty">
+      <h3>{{ _('No active group pools.') }}</h3>
+      <p>{{ _('Pool buyer demand for produce from nearby farmers to unlock bulk freight savings.') }}</p>
+      <a class="btn btn-accent" href="{{ url_for('transport.new_group_pool') }}">{{ _('Start a New Group Pool') }}</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

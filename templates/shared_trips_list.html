@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}{{ _('Shared Delivery Trips') }}{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <h1 style="font-size:2.2rem">{{ _('Shared Delivery Trips') }}</h1>
+    <p>{{ _('Group compatible customer orders into shared delivery routes to reduce logistics costs.') }}</p>
+  </div>
+  <div class="btn-row">
+    {% if current_user and current_user.role == 'farmer' %}
+      <a class="btn btn-primary" href="{{ url_for('transport.new_shared_trip') }}">+ {{ _('Propose Shared Trip') }}</a>
+    {% endif %}
+    <a class="btn btn-outline" href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a>
+  </div>
+</div>
+
+<div class="container" style="margin-bottom:60px">
+  <div class="chips" role="group" aria-label="Filter trips">
+    <a class="chip" style="text-decoration:none" aria-pressed="{{ 'true' if not filter_role else 'false' }}" href="{{ url_for('transport.list_shared_trips') }}">{{ _('All') }}</a>
+    {% if current_user %}
+      <a class="chip" style="text-decoration:none" aria-pressed="{{ 'true' if filter_role else 'false' }}" href="{{ url_for('transport.list_shared_trips', my=1) }}">{{ _('My Orders') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    {% if trips %}
+      <div class="table-wrap"><table>
+        <thead>
+          <tr>
+            <th>{{ _('Trip Code') }}</th>
+            <th>{{ _('Farmer') }}</th>
+            <th>{{ _('Origin / Hub') }}</th>
+            <th>{{ _('Destination') }}</th>
+            <th>{{ _('Orders') }}</th>
+            <th>{{ _('Total Distance') }}</th>
+            <th>{{ _('Standalone Delivery Cost') }}</th>
+            <th>{{ _('Shared Delivery Cost') }}</th>
+            <th>{{ _('Estimated Savings') }}</th>
+            <th>{{ _('Status') }}</th>
+            <th>{{ _('Actions') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in trips %}
+            <tr>
+              <td><strong>{{ t.trip_code }}</strong></td>
+              <td>{{ t.farmer_name }}</td>
+              <td>{{ t.origin_name }}</td>
+              <td>{{ t.destination_area }}</td>
+              <td>{{ t.order_count }} ({{ t.total_kg|kg }})</td>
+              <td>≈ {{ t.total_distance_km }} km</td>
+              <td>{{ t.separate_total_cost|inr(true) }}</td>
+              <td><strong>{{ t.shared_total_cost|inr(true) }}</strong></td>
+              <td><span class="diff-pill good">{{ t.total_savings|inr }} ({{ t.savings_percent }}%)</span></td>
+              <td><span class="badge {{ t.status }}">{{ _(t.status) }}</span></td>
+              <td><a class="btn btn-outline btn-sm" href="{{ url_for('transport.trip_details', trip_id=t.id) }}">{{ _('View Details') }}</a></td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table></div>
+    {% else %}
+      <div class="empty">
+        <h3>{{ _('No shared trips created yet.') }}</h3>
+        <p>{{ _('Group compatible customer orders into shared delivery routes to reduce logistics costs.') }}</p>
+        {% if current_user and current_user.role == 'farmer' %}
+          <a class="btn btn-primary" href="{{ url_for('transport.new_shared_trip') }}">{{ _('Propose Shared Trip') }}</a>
+        {% endif %}
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

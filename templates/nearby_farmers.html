@@ -1,0 +1,70 @@
+{% extends "base.html" %}{% block title %}{{ _('Nearby Farmers') }}{% endblock %}
+{% block head %}<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">{% endblock %}
+{% block content %}
+<div class="container page-head"><h1 style="font-size:2.4rem">{{ _('Nearby Farmers') }}</h1>
+  <p>{{ _('Discover local farmers selling fresh crops around Greater Noida and calculate delivered costs.') }}</p>
+  <div style="display:flex;gap:10px;margin-top:10px;flex-wrap:wrap">
+    <a class="btn btn-outline btn-sm" href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a>
+    <a class="btn btn-outline btn-sm" href="{{ url_for('transport.collection_points') }}">{{ _('Collection Points') }}</a>
+    <a class="btn btn-outline btn-sm" href="{{ url_for('transport.list_group_pools') }}">{{ _('Group Ordering Pools') }}</a>
+  </div>
+</div>
+<div class="container" style="margin-bottom:60px">
+  <form class="card" method="get" action="{{ url_for('main.nearby_farmers') }}">
+    <div class="filters">
+      <div><label for="crop">{{ _('Crop') }}</label><input id="crop" name="crop" list="crops" value="{{ f.crop }}" placeholder="{{ _('e.g. Tomato') }}"></div>
+      <datalist id="crops">{% for c in crops %}<option value="{{ c }}">{% endfor %}</datalist>
+      <div><label for="quantity">{{ _('Quantity needed (kg)') }}</label><input id="quantity" name="quantity" type="number" min="0" step="0.01" value="{{ f.quantity }}"></div>
+      <div><label for="max_price">{{ _('Max Price (₹)') }}</label><input id="max_price" name="max_price" type="number" min="0" step="0.01" value="{{ f.max_price }}"></div>
+      <div><label for="quality">{{ _('Quality') }}</label><select id="quality" name="quality"><option value="">{{ _('All Qualities') }}</option>{% for q in qualities %}<option {{ 'selected' if f.quality == q }}>{{ _(q) }}</option>{% endfor %}</select></div>
+      <div><label for="rate">{{ _('Transport Rate (₹/km)') }}</label><input id="rate" name="rate" type="number" min="0" step="0.5" value="{{ rate }}"><div class="hint">{{ _('Illustrative rate you can change.') }}</div></div>
+    </div>
+    <h4 style="margin-top:18px">{{ _('Your Location') }} <span class="muted small">({{ _('for distance') }})</span></h4>
+    <div class="filters">
+      <div><label for="preset">{{ _('Select a pre-set locality') }}</label><select id="preset"><option value="">{{ _('Choose…') }}</option>{% for n, la, ln in presets %}<option value="{{ la }},{{ ln }}">{{ n }}</option>{% endfor %}</select></div>
+      <div><label for="lat">{{ _('Latitude') }}</label><input id="lat" name="lat" type="number" step="any" value="{{ loc[0] if loc else '' }}"></div>
+      <div><label for="lng">{{ _('Longitude') }}</label><input id="lng" name="lng" type="number" step="any" value="{{ loc[1] if loc else '' }}"></div>
+      <input type="hidden" id="loc_label" name="loc_label" value="{{ loc[2] if loc else '' }}">
+      <div><button type="button" id="use-geo" class="btn btn-outline btn-block">{{ _('Use My Current Location') }}</button></div>
+      <div><button class="btn btn-primary btn-block">{{ _('Find farmers') }}</button></div>
+    </div>
+    <p class="small muted" id="loc-msg" style="margin:8px 0 0">{{ _('Click anywhere on the map to set your location') }}.{% if loc %} {{ _('Your Location') }}: <strong>{{ loc[2] or _('Point on map') }}</strong> · <a href="{{ url_for('main.nearby_farmers', clear_loc=1) }}">{{ _('Clear Filters') }}</a>{% endif %}</p>
+  </form>
+
+  <div style="margin-top:24px">
+    <div class="chips" aria-label="{{ _('Show markers for a crop') }}">
+      {% set seen = [] %}{% for m in markers %}{% for c in m.crops %}{% if c.crop not in seen %}{% set dummy = seen.append(c.crop) %}<button type="button" class="chip" data-crop="{{ c.crop|lower }}" aria-pressed="false">{{ _(c.crop) if c.crop in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else c.crop }}</button>{% endif %}{% endfor %}{% endfor %}
+    </div>
+    <div id="farmer-map" class="map" role="region" aria-label="{{ _('Nearby farmers map') }}"></div>
+    <div id="farmer-map-fallback" class="map-fallback card">{{ _('Map tiles could not be loaded.') }}</div>
+    <p class="small muted">{{ _('Map data ©') }} <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>. {{ _('Blue pin = your location, green pins = farmers.') }}</p>
+  </div>
+
+  <div class="card" style="margin-top:24px">
+    <h3>{{ results|length }} {{ _('results') }}</h3>
+    <p class="small muted">{{ _('Distances are straight-line estimates and transport costs are illustrative, not delivery quotes. Farm locations in the demo are fictional.') }}</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>{{ _('Score') }}</th><th>{{ _('Farmer') }}</th><th>{{ _('Crop') }}</th><th>{{ _('Price') }}</th><th>{{ _('Available') }}</th><th>{{ _('Distance') }}</th><th>{{ _('Product cost') }}</th><th>{{ _('Est. transport') }}</th><th>{{ _('Est. delivered cost') }}</th><th></th></tr></thead>
+      <tbody>{% for r in results %}
+        <tr><td class="score">{{ r.score }}</td>
+          <td>{{ r.farmer_name }}<div class="small muted">{{ r.city }}</div></td>
+          <td>{{ _(r.crop_name) if r.crop_name in ('Wheat', 'Rice', 'Tomato', 'Potato', 'Onion', 'Mustard', 'Cauliflower', 'Green Peas') else r.crop_name }} <span class="badge {{ r.quality }}">{{ _(r.quality) }}</span></td>
+          <td>{{ r.price_per_kg|per_kg }}</td>
+          <td>{{ r.quantity_kg|kg }}{% if qty and not r.covers_request %}<div class="small" style="color:var(--danger)">{{ _('Less than requested') }}</div>{% endif %}</td>
+          <td>{% if r.distance_km is not none %}{{ '%.1f'|format(r.distance_km) }} km{% else %}<span class="muted small">{{ _('Point on map') if loc else _('Set location') }}</span>{% endif %}</td>
+          <td>{{ r.product_cost|inr(true) if r.product_cost is not none else '—' }}</td>
+          <td>{{ r.transport_cost|inr(true) if r.transport_cost is not none else '—' }}</td>
+          <td><strong>{{ r.delivered_cost|inr(true) if r.delivered_cost is not none else '—' }}</strong></td>
+          <td><a class="btn btn-outline btn-sm" href="{{ url_for('main.product_detail', listing_id=r.id) }}">{{ _('View Details') }}</a></td></tr>
+      {% else %}<tr><td colspan="10" class="empty">{{ _('No listings found') }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% if qty %}<p class="small muted">{{ _('Product cost is for requested quantity. Delivered cost = product cost + estimated transport.') }}</p>{% endif %}
+  </div>
+</div>
+<script type="application/json" id="map-data">{{ map_data|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='js/map.js') }}"></script>
+<script>AgriMap.farmers("farmer-map", JSON.parse(document.getElementById("map-data").textContent));</script>
+{% endblock %}

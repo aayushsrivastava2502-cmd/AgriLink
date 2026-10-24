@@ -1,0 +1,40 @@
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local databases and instance files
+instance/*
+!instance/.gitkeep
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment variables and secrets
+.env
+.env.*
+*.env
+secret.key
+*.key
+
+# Uploaded files
+static/uploads/*
+!static/uploads/.gitkeep
+
+# ML artifacts and large datasets
+ml/artifacts/
+data/*.csv
+data/*.parquet
+
+# OS and Editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,22 @@
+{% extends "base.html" %}{% from "_macros.html" import orders_table %}{% block title %}{{ _('Orders') }}{% endblock %}
+{% block content %}
+<div class="container page-head" style="display:flex;justify-content:space-between;align-items:end;flex-wrap:wrap;gap:16px">
+  <div>
+    <h1 style="font-size:2.2rem">{{ _('Incoming Orders') if current_user.role == 'farmer' else _('My Orders') }}</h1>
+    <p>{% if current_user.role == 'farmer' %}{{ _('Accept requests your stock can cover, reject the rest, and mark accepted orders completed after handover.') }}{% else %}{{ _('Status updates from farmers appear here. You can cancel a request while it is still pending.') }}{% endif %}
+    {{ _('No real payments are processed. Stock is reserved when the farmer accepts.') }}</p>
+  </div>
+  <div class="btn-row">
+    {% if current_user.role == 'farmer' %}
+      <a class="btn btn-primary" href="{{ url_for('transport.new_shared_trip') }}">+ {{ _('Propose Shared Trip') }}</a>
+    {% endif %}
+    <a class="btn btn-outline" href="{{ url_for('transport.dashboard') }}">{{ _('Transport Optimizer') }}</a>
+  </div>
+</div>
+<div class="container" style="margin-bottom:60px">
+  <div class="chips" role="group" aria-label="{{ _('Filter by status') }}">
+    <a class="chip" style="text-decoration:none" aria-pressed="{{ 'true' if not status else 'false' }}" href="{{ url_for('orders.list_orders') }}">{{ _('All') if current_lang == 'hi' else 'All' }}</a>
+    {% for s in statuses %}<a class="chip" style="text-decoration:none" aria-pressed="{{ 'true' if status == s else 'false' }}" href="{{ url_for('orders.list_orders', status=s) }}">{{ _(s.title()) if current_lang == 'hi' else s.title() }}</a>{% endfor %}
+  </div>
+  <div class="card">{{ orders_table(orders, current_user.role, request.full_path.rstrip('?')) }}</div>
+</div>{% endblock %}
