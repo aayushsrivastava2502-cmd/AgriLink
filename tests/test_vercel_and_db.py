@@ -133,6 +133,54 @@ class VercelAndDatabaseTests(unittest.TestCase):
         self.assertEqual(safe_next("/marketplace"), "/marketplace")
         self.assertIsNone(safe_next("https://attacker.com"))
 
+    def test_all_navigation_routes_render_distinct_pages(self):
+        """Verify each navigation route renders its own page and NOT the homepage."""
+        from app import app
+        client = app.test_client()
+
+        routes = [
+            ("/login", b"Login"),
+            ("/register", b"Create an Account"),
+            ("/marketplace", b"Marketplace"),
+            ("/price-estimator", b"Smart Price Guidance"),
+            ("/nearby-farmers", b"Nearby Farmers"),
+            ("/transport-optimizer/", b"Transport Cost Optimization"),
+            ("/transport-optimizer/route-planner", b"Delivery Route Planner"),
+            ("/transport-optimizer/shared-trips", b"Shared Delivery Trips"),
+            ("/transport-optimizer/group-pools", b"Group Ordering Pools"),
+            ("/transport-optimizer/collection-points", b"Regional Collection Points"),
+        ]
+
+        for path, expected_text in routes:
+            resp = client.get(f"/api/index?__vercel_path__={path}")
+            self.assertEqual(resp.status_code, 200, f"Failed on {path}")
+            self.assertIn(expected_text, resp.data, f"Missing {expected_text} on {path}")
+
+    def test_farmer_and_buyer_login_flow_through_rewritten_urls(self):
+        """Verify authentication POST requests succeed through Vercel rewritten URLs."""
+        import re
+        from app import app
+        client = app.test_client()
+
+        # Farmer login
+        login_page = client.get("/api/index?__vercel_path__=/login")
+        self.assertEqual(login_page.status_code, 200)
+        csrf = re.findall(r'name="_csrf" value="([^"]+)"', login_page.get_data(as_text=True))[0]
+
+        farmer_login = client.post("/api/index?__vercel_path__=/login", data={
+            "email": "farmer1@demo.agrilink.test",
+            "password": "Demo@1234",
+            "_csrf": csrf
+        })
+        self.assertEqual(farmer_login.status_code, 302)
+        self.assertEqual(farmer_login.headers.get("Location"), "/farmer/dashboard")
+
+        # Access farmer dashboard
+        dash = client.get("/api/index?__vercel_path__=/farmer/dashboard")
+        self.assertEqual(dash.status_code, 200)
+        self.assertIn(b"Ramesh Yadav", dash.data)
+
+
 
 
 if __name__ == "__main__":
