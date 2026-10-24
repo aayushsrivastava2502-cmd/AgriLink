@@ -80,6 +80,60 @@ class VercelAndDatabaseTests(unittest.TestCase):
         self.assertTrue((base / ".vercelignore").exists())
         self.assertTrue((base / ".python-version").exists())
 
+    def test_homepage_route_returns_200(self):
+        """Regression test: verify root URL returns 200 and renders the homepage."""
+        from api.index import app as vercel_app
+        client = vercel_app.test_client()
+        resp = client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"AgriLink AI", resp.data)
+        self.assertIn(b"Marketplace", resp.data)
+
+    def test_vercel_routing_middleware_root_and_fallback(self):
+        """Verify Vercel rewrite captures and dispatches to homepage with 200 OK."""
+        from api.index import app as vercel_app
+        client = vercel_app.test_client()
+
+        # 1. URL rewritten with __vercel_path__=/
+        resp1 = client.get("/api/index?__vercel_path__=/")
+        self.assertEqual(resp1.status_code, 200)
+        self.assertIn(b"AgriLink AI", resp1.data)
+
+        # 2. URL accessed directly as /api/index (fallback)
+        resp2 = client.get("/api/index")
+        self.assertEqual(resp2.status_code, 200)
+        self.assertIn(b"AgriLink AI", resp2.data)
+
+        # 3. URL accessed as /api/index.py (fallback)
+        resp3 = client.get("/api/index.py")
+        self.assertEqual(resp3.status_code, 200)
+        self.assertIn(b"AgriLink AI", resp3.data)
+
+    def test_vercel_routing_middleware_marketplace_and_subpaths(self):
+        """Verify Vercel rewrite forwards subpaths and preserves query parameters cleanly."""
+        from api.index import app as vercel_app
+        client = vercel_app.test_client()
+
+        # Marketplace with query parameters
+        resp = client.get("/api/index?__vercel_path__=/marketplace&crop=wheat")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Marketplace", resp.data)
+
+        # Route planner
+        resp_planner = client.get("/api/index?__vercel_path__=/transport-optimizer/route-planner")
+        self.assertEqual(resp_planner.status_code, 200)
+        self.assertIn(b"Route Planner", resp_planner.data)
+
+    def test_safe_next_normalizes_vercel_paths(self):
+        """Verify safe_next normalizes /api/index back to /."""
+        from routes.helpers import safe_next
+        self.assertEqual(safe_next("/api/index"), "/")
+        self.assertEqual(safe_next("/api/index.py"), "/")
+        self.assertEqual(safe_next("/api/index/marketplace"), "/marketplace")
+        self.assertEqual(safe_next("/marketplace"), "/marketplace")
+        self.assertIsNone(safe_next("https://attacker.com"))
+
+
 
 if __name__ == "__main__":
     unittest.main()

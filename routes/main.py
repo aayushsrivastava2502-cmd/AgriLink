@@ -21,6 +21,8 @@ def _rate(raw):
         return Decimal(current_app.config["DEFAULT_TRANSPORT_RATE"])
 
 
+@bp.route("/api/index")
+@bp.route("/api/index.py")
 @bp.route("/")
 def index():
     db = get_db()

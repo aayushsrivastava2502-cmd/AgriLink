@@ -29,6 +29,10 @@ def role_required(role):
 
 def safe_next(target):
     if target and target.startswith("/") and not target.startswith("//") and "\\" not in target:
+        if target.startswith("/api/index.py"):
+            target = target[len("/api/index.py"):] or "/"
+        elif target.startswith("/api/index"):
+            target = target[len("/api/index"):] or "/"
         return target
     return None
 
